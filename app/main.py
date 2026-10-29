@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from . import orchestrator
 from .config import load_channels, settings
@@ -21,6 +21,11 @@ app = FastAPI(title="Oficina de Canales")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"])
 
 _PANEL = Path(__file__).parent / "static" / "panel.html"
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse("/panel")
 
 
 @app.get("/panel", response_class=HTMLResponse)
