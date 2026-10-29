@@ -1,0 +1,746 @@
+<title>Oficina de Canales</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: escena 3D a pantalla completa; HUD flotante en esquinas (barra arriba, bitácora abajo-izq, ficha de agente a la derecha / hoja inferior en móvil). Look único nocturno. */
+:root{
+  --night:#11131d;
+  --panel:rgba(23,26,40,.88);
+  --panel-solid:#181b2a;
+  --ink:#eef0f7;
+  --muted:#9ba1b9;
+  --line:rgba(238,240,247,.10);
+  --lamp:#f2c14e;
+  --ok:#7bd389;
+  --warn:#ff9f68;
+  --bad:#ff6b7a;
+  --lcmc:#f2a65a;
+  --gaming:#8b7cf6;
+  --f-display:"Pixelify Sans", "Trebuchet MS", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{background:var(--night);color:var(--ink);font-family:var(--f-body);overflow:hidden}
+#scene{position:fixed;inset:0;touch-action:none;cursor:grab}
+#scene.dragging{cursor:grabbing}
+#scene canvas{display:block}
+
+.hud{position:fixed;z-index:5;pointer-events:none}
+.hud > *{pointer-events:auto}
+.top{top:0;left:0;right:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+  padding-top:calc(env(safe-area-inset-top,0px) + 12px);
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));pointer-events:none}
+.brand{display:flex;align-items:baseline;gap:10px;pointer-events:auto}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:22px;margin:0;letter-spacing:.02em;color:var(--lamp);text-shadow:0 2px 0 rgba(0,0,0,.4)}
+.brand small{font-family:var(--f-mono);font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:auto}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px;backdrop-filter:blur(6px)}
+.seg button,.btn{font:500 13px var(--f-body);color:var(--ink);background:transparent;border:0;border-radius:7px;padding:7px 11px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:rgba(242,193,78,.16);color:var(--lamp)}
+.seg button:hover,.btn:hover{background:rgba(255,255,255,.06)}
+.btn{background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(6px)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
+.pill{display:inline-flex;align-items:center;gap:7px;font:500 12px var(--f-mono);padding:7px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.pill i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.pill.live i{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.pill.demo i{background:var(--lamp)}
+.pill.err i{background:var(--bad)}
+
+.feed{left:max(16px, env(safe-area-inset-left,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 14px);width:min(380px, calc(100vw - 32px));
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px);overflow:hidden}
+.feed header,.agent header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.feed h2,.agent h2{font:700 13px var(--f-display);letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--muted)}
+.feed ol{list-style:none;margin:0;padding:6px 0;max-height:30vh;overflow-y:auto}
+.feed li{display:grid;grid-template-columns:42px 1fr;gap:8px;padding:6px 12px;font-size:12.5px;line-height:1.4}
+.feed li time{font:400 11px var(--f-mono);color:var(--muted);padding-top:1px;font-variant-numeric:tabular-nums}
+.feed li span{min-width:0;overflow-wrap:anywhere}
+.tag{display:inline-block;font:500 10px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;padding:1px 6px;border-radius:4px;margin-right:6px;color:#11131d}
+.tag.lcmc{background:var(--lcmc)}.tag.gaming{background:var(--gaming)}
+.feed .who{font-weight:600}
+.feed.collapsed ol{display:none}
+.feed.collapsed header{border-bottom:0}
+.linkbtn{background:none;border:0;color:var(--muted);font:500 12px var(--f-body);cursor:pointer;padding:2px 4px}
+
+.agent{right:max(16px, env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);width:min(320px, calc(100vw - 32px));
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px)}
+.agent .body{padding:12px;display:grid;gap:12px}
+.agent .who{display:flex;gap:10px;align-items:center}
+.agent .sw{width:30px;height:30px;border-radius:8px;flex:none;box-shadow:inset 0 -6px 0 rgba(0,0,0,.25)}
+.agent .name{font:700 18px var(--f-display);margin:0}
+.agent .room{font:400 12px var(--f-mono);color:var(--muted)}
+.agent p{margin:0;font-size:13px;line-height:1.5;color:var(--ink)}
+.agent dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px}
+.agent dt{color:var(--muted)} .agent dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.agent ul{margin:0;padding:0;list-style:none;display:grid;gap:5px;font-size:12px;color:var(--muted);max-height:22vh;overflow-y:auto}
+.agent ul li{border-left:2px solid var(--line);padding-left:8px;overflow-wrap:anywhere}
+
+.hint{right:max(16px, env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 14px);font:400 11px var(--f-mono);color:var(--muted);
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+
+.modal{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(5,6,12,.6);
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px))}
+.modal form{width:min(440px,100%);background:var(--panel-solid);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px}
+.modal h2{font:700 18px var(--f-display);margin:0;color:var(--lamp)}
+.modal p{margin:0;font-size:13px;line-height:1.5;color:var(--muted)}
+.modal label{display:grid;gap:5px;font-size:12.5px;color:var(--muted)}
+.modal input{font:400 13px var(--f-mono);color:var(--ink);background:#0d0f17;border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-width:0}
+.modal .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.btn.primary{background:var(--lamp);color:#1a1404;border-color:transparent;font-weight:600}
+.err-msg{color:var(--bad);font-size:12.5px;min-height:1em}
+
+@media (max-width:640px){
+  .brand small{display:none}
+  .agent{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:6;max-height:60vh;overflow-y:auto}
+  .feed ol{max-height:18vh}
+  .hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+
+<div id="scene" aria-label="Vista aérea 3D de la oficina de agentes"></div>
+
+<div class="hud top">
+  <div class="brand"><h1>Oficina de Canales</h1><small>vista aérea</small></div>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Encuadre">
+      <button type="button" id="v-all" aria-pressed="true">Toda la oficina</button>
+      <button type="button" id="v-lcmc" aria-pressed="false">LCMC</button>
+      <button type="button" id="v-gaming" aria-pressed="false">LCMC Games</button>
+    </div>
+    <span class="pill demo" id="status"><i></i><span>Demo</span></span>
+    <button type="button" class="btn" id="open-connect">Conectar API</button>
+  </div>
+</div>
+
+<section class="hud feed" id="feed" aria-live="polite">
+  <header><h2>Bitácora</h2><button type="button" class="linkbtn" id="feed-toggle">Ocultar</button></header>
+  <ol id="feed-list"></ol>
+</section>
+
+<aside class="hud agent" id="agent" hidden>
+  <header><h2>Agente</h2><button type="button" class="linkbtn" id="agent-close">Cerrar</button></header>
+  <div class="body">
+    <div class="who"><div class="sw" id="a-sw"></div><div><p class="name" id="a-name"></p><span class="room" id="a-room"></span></div></div>
+    <p id="a-desc"></p>
+    <dl><dt>Ahora</dt><dd id="a-state"></dd><dt>Bandeja</dt><dd id="a-inbox"></dd></dl>
+    <div><h2 style="margin-bottom:6px">Últimos movimientos</h2><ul id="a-log"></ul></div>
+  </div>
+</aside>
+
+<div class="hud hint">Arrastra para girar · rueda o pellizca para acercar · toca un robot</div>
+
+<div class="modal" id="connect" hidden>
+  <form id="connect-form">
+    <h2>Conectar a tu oficina</h2>
+    <p>Con la API conectada, los robots se mueven según lo que pasa de verdad en tus canales: ideas aprobadas, guiones, renders, miniaturas y videos programados. Sin conexión, la oficina corre en modo demo.</p>
+    <label for="api-url">URL de la API
+      <input id="api-url" type="url" placeholder="https://oficina-canales-api.onrender.com" autocomplete="off"></label>
+    <label for="api-token">Token (API_TOKEN del .env)
+      <input id="api-token" type="password" autocomplete="off"></label>
+    <div class="err-msg" id="connect-err"></div>
+    <div class="row">
+      <button type="button" class="btn" id="use-demo">Usar demo</button>
+      <button type="button" class="btn" id="cancel-connect">Cancelar</button>
+      <button type="submit" class="btn primary">Conectar</button>
+    </div>
+  </form>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+"use strict";
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------------- Datos de agentes y salas ---------------- */
+const ROLES = {
+  director:     {name:"Director",     color:0xf2c14e, desc:"Decide qué se produce y cuándo se publica. Lee la memoria del canal y controla la cadencia para que los videos no se canibalicen."},
+  investigador: {name:"Investigador", color:0x3fb8af, desc:"Busca temas: comentarios de la audiencia, semillas del canal, lo que funcionó y, en gaming, las partidas nuevas."},
+  guionista:    {name:"Guionista",    color:0x9b7ede, desc:"Escribe el guion por escenas, o analiza la partida y marca los highlights con timestamps."},
+  productor:    {name:"Productor",    color:0xff7b54, desc:"Genera imágenes y voz y arma el video con ffmpeg; en gaming corta los highlights a 9:16."},
+  miniaturas:   {name:"Miniaturas",   color:0xf78fb3, desc:"Propone dos miniaturas y elige la que mejor encaja con lo que ha dado clics."},
+  publicador:   {name:"Publicador",   color:0x7bd389, desc:"Sube a YouTube como privado con fecha programada. Nunca publica en ráfaga."},
+  analista:     {name:"Analista",     color:0x5aa9e6, desc:"Junta métricas a 24 h, 7 días y 30 días y escribe lecciones en la memoria del canal."},
+};
+// posiciones locales de escritorio (x,z) y hacia dónde mira el robot al trabajar
+const DESKS = {
+  analista:     [-5.6,-4.3], director:[0,-4.1], investigador:[-6.8,0.4],
+  guionista:    [-3.6,4.2],  productor:[0.2,4.6], miniaturas:[4.0,4.2], publicador:[6.8,0.4],
+};
+const ROOMS = [
+  {id:"lcmc",   name:"LCMC · Servir para Servir", ox:-9.4, tint:0xf2a65a, floor:0x4a3f52, rug:0x4a3326,
+   seeds:["Refrigerador no enfría: 5 causas","Cómo probar un compresor","Lavadora no centrifuga","Minisplit gotea agua","Por qué se forma hielo","Secadora no calienta","Códigos de error Samsung"]},
+  {id:"gaming", name:"LCMC Games · MLBB / Magic Chess", ox:9.4, tint:0x8b7cf6, floor:0x3a3d63, rug:0x2f2a5c,
+   seeds:["Escape de gank en jungla","Compo de magos en Magic Chess","Outplay 1v3 con asesino","Héroe del parche","Savage con tirador","Remontada en Magic Chess"]},
+];
+
+/* ---------------- Escena ---------------- */
+const host = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+host.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x11131d);
+
+const camera = new THREE.OrthographicCamera(-1,1,1,-1,0.1,300);
+const view = {az:Math.PI/4, el:0.95, target:new THREE.Vector3(0,0,0), size:30, goalTarget:new THREE.Vector3(0,0,0), goalSize:30};
+
+scene.add(new THREE.HemisphereLight(0xb8c6ff, 0x2a2030, 0.95));
+const sun = new THREE.DirectionalLight(0xffe2b8, 1.15);
+sun.position.set(-14,28,18); sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-26,right:26,top:18,bottom:-18,near:1,far:80});
+scene.add(sun);
+
+const M = (color, o={}) => new THREE.MeshStandardMaterial(Object.assign({color, roughness:.7, metalness:.05}, o));
+function box(w,h,d,mat,x=0,y=0,z=0,parent=scene){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set(x,y,z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+}
+
+// suelo exterior
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(120,120), M(0x0c0e16,{roughness:1}));
+ground.rotation.x = -Math.PI/2; ground.position.y = -0.02; ground.receiveShadow = true; scene.add(ground);
+
+/* ---------------- Texturas de texto ---------------- */
+function textCanvas(lines, {font="600 44px 'IBM Plex Sans', sans-serif", pad=24, bg="#f6f3ec", fg="#1b1e2b", radius=26, tail=false, accent=null}={}){
+  const c = document.createElement("canvas"); const g = c.getContext("2d");
+  g.font = font;
+  const lh = parseInt(font.match(/(\d+)px/)[1],10)*1.22;
+  const w = Math.ceil(Math.max(...lines.map(l => g.measureText(l).width))) + pad*2 + (accent?14:0);
+  const h = Math.ceil(lines.length*lh + pad*1.6) + (tail?22:0);
+  c.width = w; c.height = h;
+  g.font = font;
+  const bh = h - (tail?22:0);
+  g.fillStyle = bg; g.beginPath();
+  g.moveTo(radius,0); g.arcTo(w,0,w,bh,radius); g.arcTo(w,bh,0,bh,radius); g.arcTo(0,bh,0,0,radius); g.arcTo(0,0,w,0,radius); g.closePath(); g.fill();
+  if (tail){ g.beginPath(); g.moveTo(w/2-16,bh-1); g.lineTo(w/2,h); g.lineTo(w/2+16,bh-1); g.closePath(); g.fill(); }
+  if (accent){ g.fillStyle = accent; g.fillRect(0, 0, 10, bh); }
+  g.fillStyle = fg; g.textBaseline = "middle";
+  lines.forEach((l,i) => g.fillText(l, pad + (accent?14:0), pad*0.8 + lh*i + lh/2));
+  return c;
+}
+function spriteFrom(canvas, worldH){
+  const tex = new THREE.CanvasTexture(canvas); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false}));
+  s.scale.set(worldH*canvas.width/canvas.height, worldH, 1); s.renderOrder = 10; return s;
+}
+function wrap(text, max=26){
+  const words = String(text).split(/\s+/); const out=[]; let cur="";
+  for (const w of words){ if ((cur+" "+w).trim().length > max){ if(cur) out.push(cur); cur=w; } else cur=(cur+" "+w).trim(); }
+  if (cur) out.push(cur);
+  if (out.length > 3){ out.length = 3; out[2] = out[2].replace(/.{0,2}$/,"…"); }
+  return out;
+}
+
+/* ---------------- Construcción de salas ---------------- */
+const pickables = [];
+function buildRoom(R){
+  const g = new THREE.Group(); g.position.x = R.ox; scene.add(g); R.group = g;
+  // piso de losetas
+  const tiles = document.createElement("canvas"); tiles.width = tiles.height = 256;
+  const tg = tiles.getContext("2d");
+  const base = new THREE.Color(R.floor);
+  for (let i=0;i<8;i++) for (let j=0;j<8;j++){
+    const c = base.clone().offsetHSL(0,0,((i+j)%2?0.012:-0.008) + (Math.random()-.5)*0.01);
+    tg.fillStyle = "#"+c.getHexString(); tg.fillRect(i*32,j*32,32,32);
+    tg.strokeStyle = "rgba(0,0,0,.25)"; tg.strokeRect(i*32+.5,j*32+.5,31,31);
+  }
+  const ftex = new THREE.CanvasTexture(tiles); ftex.wrapS = ftex.wrapT = THREE.RepeatWrapping; ftex.repeat.set(4,3); ftex.encoding = THREE.sRGBEncoding;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(17,12.4), new THREE.MeshStandardMaterial({map:ftex, roughness:.9}));
+  floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; g.add(floor);
+  // tapete central
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(2.6,40), M(R.rug,{roughness:1}));
+  rug.rotation.x = -Math.PI/2; rug.position.set(0,0.01,0.6); rug.receiveShadow = true; g.add(rug);
+  // nombre en el piso
+  const lbl = textCanvas([R.name],{font:"700 64px 'Pixelify Sans', sans-serif", bg:"rgba(0,0,0,0)", fg:"#"+new THREE.Color(R.tint).getHexString(), pad:10});
+  const ltex = new THREE.CanvasTexture(lbl); ltex.encoding = THREE.sRGBEncoding;
+  const lm = new THREE.Mesh(new THREE.PlaneGeometry(9*lbl.width/lbl.height*0.11, 9*0.11), new THREE.MeshBasicMaterial({map:ltex, transparent:true}));
+  lm.rotation.x = -Math.PI/2; lm.position.set(0,0.02,6.9); g.add(lm);
+  // muros: trasero alto, laterales bajos, frente abierto
+  const wall = M(0x2e3250), trim = M(R.tint,{roughness:.5});
+  box(17.4,2.4,0.3,wall,0,1.2,-6.35,g);
+  box(17.4,0.12,0.34,trim,0,2.42,-6.35,g);
+  box(0.3,1.0,12.7,wall,-8.65,0.5,0,g); box(0.3,1.0,12.7,wall,8.65,0.5,0,g);
+  // ventanas en el muro trasero (luces de ciudad)
+  for (const wx of [-2.6, 2.6]){
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(2.4,1.3), M(0x0b1430,{emissive:0x1a2a66, emissiveIntensity:.8}));
+    win.position.set(wx,1.45,-6.19); g.add(win);
+    for (let k=0;k<14;k++){
+      const d = new THREE.Mesh(new THREE.PlaneGeometry(.08,.12), new THREE.MeshBasicMaterial({color: Math.random()<.7?0xffd27a:0x8fb6ff}));
+      d.position.set(wx-1.05+Math.random()*2.1, 0.9+Math.random()*1.0, -6.18); g.add(d);
+    }
+  }
+  // pantalla de métricas del Analista
+  const chart = document.createElement("canvas"); chart.width = 512; chart.height = 288;
+  const ctex = new THREE.CanvasTexture(chart); ctex.encoding = THREE.sRGBEncoding;
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(3.0,1.7), new THREE.MeshBasicMaterial({map:ctex}));
+  scr.position.set(-5.6,1.5,-6.18); g.add(scr);
+  box(3.2,1.9,0.08,M(0x15172a),-5.6,1.5,-6.24,g);
+  R.chart = {canvas:chart, tex:ctex, values:Array.from({length:7},()=>35+Math.random()*30), label:"Retención 7 días (%)"};
+  drawChart(R);
+  // portal de publicación
+  const portal = new THREE.Group(); portal.position.set(5.6,0,-5.6); g.add(portal);
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(1.05,0.13,12,32,Math.PI), M(0x7bd389,{emissive:0x2f8a4a, emissiveIntensity:.9, roughness:.4}));
+  arch.position.y = 0.05; arch.castShadow = true; portal.add(arch);
+  const veil = new THREE.Mesh(new THREE.CircleGeometry(1.0,32,0,Math.PI), new THREE.MeshBasicMaterial({color:0x7bd389, transparent:true, opacity:.12, side:THREE.DoubleSide}));
+  veil.position.y = 0.05; portal.add(veil);
+  box(2.6,0.06,0.9,M(0x1d3a2a),0,0.03,0,portal);
+  const pl = spriteFrom(textCanvas(["Publicación"],{font:"600 34px 'IBM Plex Mono', monospace", bg:"rgba(20,40,28,.9)", fg:"#7bd389", pad:14, radius:12}),0.42);
+  pl.position.set(0,1.5,0.1); portal.add(pl);
+  R.portal = portal; R.portalArch = arch;
+  // máquina de café (paseos ambientales)
+  box(0.7,1.2,0.6,M(0x3b3f5c),-7.8,0.6,5.4,g); box(0.5,0.25,0.06,M(0x111111,{emissive:0xff6b4a,emissiveIntensity:.6}),-7.8,1.0,5.71,g);
+  R.coffee = new THREE.Vector3(-7.0,0,4.6);
+  // plantas
+  for (const [px,pz] of [[7.8,5.4],[-7.9,-5.6],[7.9,-3.4]]){
+    box(0.5,0.5,0.5,M(0x6b4a3a),px,0.25,pz,g);
+    const leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55,0), M(0x3f8f5a,{flatShading:true}));
+    leaf.position.set(px,0.95,pz); leaf.castShadow = true; g.add(leaf);
+  }
+  // lámpara cálida
+  const lamp = new THREE.PointLight(0xffc77a, 1.1, 18, 2); lamp.position.set(0,4.5,0.5); g.add(lamp);
+
+  // escritorios + agentes
+  R.agents = {};
+  for (const role of Object.keys(DESKS)){
+    const [dx,dz] = DESKS[role];
+    const toC = new THREE.Vector2(-dx, -dz + 0.4).normalize();
+    const desk = new THREE.Group(); desk.position.set(dx,0,dz); desk.rotation.y = Math.atan2(toC.x,toC.y); g.add(desk);
+    const wide = role === "director" ? 2.3 : 1.7;
+    box(wide,0.1,0.9,M(0x8a5a3c,{roughness:.6}),0,0.82,0,desk);
+    for (const [lx,lz] of [[-wide/2+.08,-.38],[wide/2-.08,-.38],[-wide/2+.08,.38],[wide/2-.08,.38]]) box(0.08,0.8,0.08,M(0x3a2a22),lx,0.4,lz,desk);
+    box(0.08,0.4,0.08,M(0x22242f),0,1.07,-0.25,desk);
+    const screenMat = M(0x0e1120,{emissive:ROLES[role].color, emissiveIntensity:.35, roughness:.3});
+    box(0.85,0.52,0.06,M(0x22242f),0,1.42,-0.28,desk);
+    const scrn = new THREE.Mesh(new THREE.PlaneGeometry(0.76,0.44), screenMat); scrn.position.set(0,1.42,-0.245); desk.add(scrn);
+    box(0.5,0.03,0.18,M(0x2b2e3d),0,0.885,0.12,desk);
+    // silla
+    box(0.55,0.08,0.55,M(ROLES[role].color,{roughness:.8}),0,0.48,0.95,desk);
+    box(0.55,0.55,0.08,M(ROLES[role].color,{roughness:.8}),0,0.78,1.2,desk);
+    box(0.08,0.44,0.08,M(0x22242f),0,0.22,0.95,desk);
+    // punto donde se para el robot: frente al escritorio, mirando a la pantalla
+    const stand = new THREE.Vector3(dx,0,dz).add(new THREE.Vector3(toC.x,0,toC.y).multiplyScalar(0.95));
+    const a = new Agent(role, R, stand, desk.rotation.y + Math.PI, screenMat);
+    R.agents[role] = a;
+  }
+}
+function drawChart(R){
+  const {canvas, tex, values, label} = R.chart; const g = canvas.getContext("2d");
+  g.fillStyle = "#0f1222"; g.fillRect(0,0,512,288);
+  g.strokeStyle = "rgba(255,255,255,.07)";
+  for (let y=60;y<=240;y+=45){ g.beginPath(); g.moveTo(30,y); g.lineTo(492,y); g.stroke(); }
+  g.fillStyle = "#9ba1b9"; g.font = "500 22px 'IBM Plex Mono', monospace"; g.fillText(label, 30, 36);
+  const bw = 462/values.length;
+  values.forEach((v,i) => {
+    const h = Math.max(4, Math.min(100,v)/100*180);
+    g.fillStyle = v >= 55 ? "#7bd389" : v >= 40 ? "#5aa9e6" : "#ff9f68";
+    g.fillRect(30+i*bw+8, 240-h, bw-16, h);
+    g.fillStyle = "#eef0f7"; g.font = "500 18px 'IBM Plex Mono', monospace";
+    g.fillText(Math.round(v), 30+i*bw+bw/2-11, 232-h);
+  });
+  tex.needsUpdate = true;
+}
+
+/* ---------------- Robots ---------------- */
+class Agent {
+  constructor(role, room, stand, faceY, screenMat){
+    this.role = role; this.room = room; this.home = stand.clone(); this.faceY = faceY; this.screenMat = screenMat;
+    this.state = "work"; this.queue = []; this.log = []; this.task = null; this.wait = 0;
+    this.wanderIn = 20 + Math.random()*40; this.seed = Math.random()*10;
+    const color = ROLES[role].color;
+    const body = M(color,{roughness:.55}), dark = M(0x1b1e2b,{roughness:.35}), shell = M(0xf1ede4,{roughness:.6});
+    const root = new THREE.Group(); root.position.copy(stand); root.rotation.y = faceY; room.group.add(root); this.root = root;
+    root.userData.agent = this;
+    this.legs = [-1,1].map(s => { const p = new THREE.Group(); p.position.set(s*.15,.5,0); root.add(p);
+      box(.17,.48,.2,dark,0,-.24,0,p); box(.2,.08,.3,body,0,-.47,.05,p); return p; });
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(.3,.34,.56,18), shell); torso.position.y = .78; torso.castShadow = true; root.add(torso);
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.1,18), body); belt.position.y = .56; root.add(belt);
+    this.chest = box(.16,.1,.04,M(color,{emissive:color, emissiveIntensity:.8}),0,.86,.31,root);
+    this.arms = [-1,1].map(s => { const p = new THREE.Group(); p.position.set(s*.41,1.0,0); root.add(p);
+      box(.12,.42,.14,body,0,-.2,0,p); const h = new THREE.Mesh(new THREE.SphereGeometry(.08,10,8), shell); h.position.y = -.43; p.add(h); return p; });
+    const head = new THREE.Group(); head.position.y = 1.38; root.add(head); this.head = head;
+    box(.78,.58,.66,body,0,0,0,head);
+    box(.64,.32,.05,dark,0,.02,.33,head);
+    this.eyes = [-1,1].map(s => { const e = new THREE.Mesh(new THREE.SphereGeometry(.055,10,8), new THREE.MeshBasicMaterial({color:0xc9fbff})); e.position.set(s*.14,.03,.37); head.add(e); return e; });
+    box(.82,.08,.7,M(new THREE.Color(color).multiplyScalar(.8).getHex(),{roughness:.5}),0,.3,0,head);
+    const ant = new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,.26,6), shell); ant.position.y = .46; head.add(ant);
+    this.bulb = new THREE.Mesh(new THREE.SphereGeometry(.075,12,10), M(color,{emissive:color, emissiveIntensity:1.2})); this.bulb.position.y = .62; head.add(this.bulb);
+    this.carry = box(.36,.06,.28,M(0xfaf7ef),0,.98,.42,root); this.carry.visible = false;
+    root.traverse(o => { if (o.isMesh){ o.castShadow = true; o.userData.agent = this; pickables.push(o); } });
+    // etiqueta con nombre
+    this.badge = spriteFrom(textCanvas([ROLES[role].name],{font:"600 30px 'IBM Plex Sans', sans-serif", bg:"rgba(17,19,29,.82)", fg:"#"+new THREE.Color(color).getHexString(), pad:12, radius:14}),0.32);
+    this.badge.position.set(0,2.2,0); root.add(this.badge);
+    this.bubble = null; this.bubbleT = 0;
+  }
+  say(text, kind="info", secs=4.5){
+    if (this.bubble){ this.root.remove(this.bubble); this.bubble.material.map.dispose(); this.bubble.material.dispose(); }
+    const accent = kind==="bad" ? "#ff6b7a" : kind==="ok" ? "#7bd389" : kind==="ask" ? "#f2c14e" : null;
+    this.bubble = spriteFrom(textCanvas(wrap(text),{tail:true, accent}),0.95 * (0.5 + 0.25*Math.min(3,wrap(text).length)));
+    this.bubble.position.set(0,2.95 + 0.18*wrap(text).length,0);
+    this.root.add(this.bubble); this.bubbleT = secs;
+  }
+  note(text){ this.log.unshift({t:new Date(), text}); this.log.length = Math.min(this.log.length, 12); if (selected === this) renderAgent(); }
+  enqueue(task){ this.queue.push(task); if (this.state === "work" || this.state === "wanderBack") this.next(); }
+  next(){
+    if (!this.queue.length){ this.task = null; this.goTo(this.home, "return"); return; }
+    this.task = this.queue.shift();
+    this.carry.visible = !!this.task.carry;
+    this.goTo(this.task.where(), "deliver");
+  }
+  goTo(p, phase){ this.dest = p.clone(); this.phase = phase; this.state = "walk"; }
+  statusText(){
+    if (this.state === "walk" && this.phase === "deliver") return "Caminando a " + (this.task?.toName || "entregar");
+    if (this.state === "walk" && this.phase === "wander") return "Por un café";
+    if (this.state === "walk") return "Regresando a su escritorio";
+    if (this.state === "hand") return "Entregando: " + (this.task?.msg || "");
+    if (this.state === "coffee") return "Tomando café";
+    return "Trabajando en su escritorio";
+  }
+  update(dt, t){
+    if (this.bubble){ this.bubbleT -= dt; if (this.bubbleT < 0){ this.bubble.material.opacity -= dt*2; if (this.bubble.material.opacity <= 0){ this.root.remove(this.bubble); this.bubble = null; } } }
+    const blink = (Math.sin(t*0.9 + this.seed*3) > 0.985) ? 0.15 : 1; this.eyes.forEach(e => e.scale.y = blink);
+    this.bulb.material.emissiveIntensity = (this.state === "work" ? 0.9 + 0.5*Math.sin(t*4+this.seed) : 1.4);
+    if (this.state === "walk"){
+      const p = this.root.position; const d = this.dest.clone().sub(p); d.y = 0; const dist = d.length();
+      const sp = 2.3*dt;
+      if (dist > 0.05){
+        const yaw = Math.atan2(d.x, d.z); this.root.rotation.y = lerpAngle(this.root.rotation.y, yaw, Math.min(1, dt*10));
+        p.add(d.normalize().multiplyScalar(Math.min(sp, dist)));
+        const s = Math.sin(t*11 + this.seed); this.legs[0].rotation.x = s*.55; this.legs[1].rotation.x = -s*.55;
+        this.arms[0].rotation.x = this.carry.visible ? -1.2 : -s*.5; this.arms[1].rotation.x = this.carry.visible ? -1.2 : s*.5;
+        this.root.position.y = Math.abs(Math.sin(t*11 + this.seed))*0.05;
+      } else {
+        this.legs.forEach(l => l.rotation.x = 0); this.root.position.y = 0;
+        if (this.phase === "deliver"){
+          this.state = "hand"; this.wait = 1.6; this.root.rotation.y = this.task.faceTo ? Math.atan2(this.task.faceTo.x - p.x, this.task.faceTo.z - p.z) : this.root.rotation.y;
+          this.say(this.task.msg, this.task.kind || "info");
+        } else if (this.phase === "wander"){ this.state = "coffee"; this.wait = 3 + Math.random()*3; this.say("Café ☕", "info", 2.5); }
+        else { this.state = "work"; if (this.queue.length) this.next(); }
+      }
+    } else if (this.state === "hand"){
+      this.arms.forEach(a => a.rotation.x = -1.3);
+      this.wait -= dt;
+      if (this.wait <= 0){ this.carry.visible = false; const done = this.task.onDone; this.task = null; done && done(); this.next(); }
+    } else if (this.state === "coffee"){
+      this.arms[1].rotation.x = -1.6 + Math.sin(t*2)*.2; this.wait -= dt;
+      if (this.wait <= 0){ this.arms[1].rotation.x = 0; this.goTo(this.home, "return"); }
+    } else { // work
+      this.root.rotation.y = lerpAngle(this.root.rotation.y, this.faceY, Math.min(1, dt*6));
+      this.arms[0].rotation.x = -1.0 + Math.sin(t*14 + this.seed)*.12; this.arms[1].rotation.x = -1.0 + Math.sin(t*14 + this.seed + 1.7)*.12;
+      this.head.rotation.x = Math.sin(t*1.3 + this.seed)*0.04;
+      this.wanderIn -= dt;
+      if (this.wanderIn <= 0 && !this.queue.length){
+        this.wanderIn = 45 + Math.random()*60;
+        if (Math.random() < 0.5){ this.goTo(this.room.coffee.clone().add(new THREE.Vector3(Math.random()*.8,0,Math.random()*.8)), "wander"); }
+      }
+    }
+    const atDesk = this.state === "work";
+    this.screenMat.emissiveIntensity = atDesk ? 0.55 + 0.15*Math.sin(t*9 + this.seed) : 0.12;
+  }
+}
+function lerpAngle(a,b,k){ let d = b - a; while (d > Math.PI) d -= 2*Math.PI; while (d < -Math.PI) d += 2*Math.PI; return a + d*k; }
+
+ROOMS.forEach(buildRoom);
+
+/* ---------------- Entregas entre agentes ---------------- */
+const particles = [];
+function burst(R){
+  if (REDUCED) return;
+  const wp = new THREE.Vector3(); R.portal.getWorldPosition(wp);
+  for (let i=0;i<18;i++){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(.12,.12,.12), new THREE.MeshBasicMaterial({color: i%3 ? 0x7bd389 : 0xf2c14e, transparent:true}));
+    m.position.copy(wp).add(new THREE.Vector3((Math.random()-.5)*1.4, 0.3+Math.random()*1.2, 0));
+    m.userData.v = new THREE.Vector3((Math.random()-.5)*1.2, 2+Math.random()*2.5, (Math.random()-.5)*1.2); m.userData.life = 1.4;
+    scene.add(m); particles.push(m);
+  }
+}
+function approach(R, toRole, fromAgent){
+  if (toRole === "portal"){ const p = R.portal.position.clone().add(new THREE.Vector3(0,0,1.1)); return p; }
+  const target = R.agents[toRole];
+  const tp = target.state === "work" ? target.home : target.root.position;
+  const dir = fromAgent.root.position.clone().sub(tp); dir.y = 0;
+  if (dir.length() < .01) dir.set(0,0,1);
+  return tp.clone().add(dir.normalize().multiplyScalar(1.0));
+}
+function handoff(R, from, to, msg, opts={}){
+  const A = R.agents[from];
+  const toName = to === "portal" ? "Publicación" : ROLES[to].name;
+  A.enqueue({
+    carry: true, msg, kind: opts.kind, toName,
+    where: () => approach(R, to, A),
+    faceTo: to === "portal" ? R.portal.position.clone() : R.agents[to].root.position.clone(),
+    onDone: () => {
+      if (to === "portal"){ burst(R); }
+      else if (opts.ack){ R.agents[to].say(opts.ack, "ok", 2.5); }
+      opts.after && opts.after();
+    }
+  });
+  const line = `${ROLES[from].name} → ${toName}: ${msg}`;
+  A.note(`A ${toName}: ${msg}`);
+  if (to !== "portal") R.agents[to].note(`Recibe de ${ROLES[from].name}: ${msg}`);
+  feed(R, line);
+}
+
+/* ---------------- Bitácora ---------------- */
+const feedList = document.getElementById("feed-list");
+function feed(R, text){
+  const li = document.createElement("li");
+  const now = new Date();
+  li.innerHTML = `<time>${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}</time><span><span class="tag ${R.id}">${R.id}</span></span>`;
+  li.lastChild.append(document.createTextNode(text));
+  feedList.prepend(li);
+  while (feedList.children.length > 40) feedList.lastChild.remove();
+}
+document.getElementById("feed-toggle").onclick = (e) => {
+  const f = document.getElementById("feed"); f.classList.toggle("collapsed");
+  e.target.textContent = f.classList.contains("collapsed") ? "Mostrar" : "Ocultar";
+};
+
+/* ---------------- Modo demo ---------------- */
+let mode = "demo";
+const demo = ROOMS.map(R => ({R, step: Math.floor(Math.random()*3), t: 2 + Math.random()*3, k:0}));
+function demoTick(dt){
+  for (const d of demo){
+    d.t -= dt; if (d.t > 0) continue;
+    d.t = 5 + Math.random()*3;
+    const R = d.R, title = R.seeds[d.k % R.seeds.length];
+    const busy = Object.values(R.agents).reduce((n,a) => n + a.queue.length + (a.task?1:0), 0);
+    if (busy > 3) continue;
+    switch (d.step % 8){
+      case 0: handoff(R,"investigador","director",`3 ideas nuevas, la mejor: ${title}`, {ack:"La reviso"}); break;
+      case 1: handoff(R,"director","guionista",`Aprobada: ${title}`, {ack:"Va"}); break;
+      case 2: handoff(R,"guionista","productor",`Guion listo: ${title}`, {ack:"A render"}); break;
+      case 3: handoff(R,"productor","miniaturas",`Video renderizado (${R.id==="gaming"?"3 highlights":"8 escenas"})`, {ack:"Hago 2"}); break;
+      case 4: handoff(R,"miniaturas","director","2 miniaturas, recomiendo la A", {ack:"Elijo la A"}); break;
+      case 5: {
+        const h = R.id === "gaming" ? "21:00" : "20:00";
+        handoff(R,"director","publicador",`Programar ${title} a las ${h}`, {ack:"Hecho", after: () => handoff(R,"publicador","portal",`Subido y programado ${h}`, {kind:"ok"})});
+        break; }
+      case 6: {
+        const v = Math.round(40 + Math.random()*30); R.chart.values.shift(); R.chart.values.push(v); drawChart(R);
+        handoff(R,"analista","director", v >= 55 ? `Retención ${v}%: haz secuela de ${title}` : `Retención ${v}%: el gancho tardó, acortarlo`, {ack:"Anotado", kind: v>=55?"ok":"ask"});
+        break; }
+      case 7:
+        if (R.id === "gaming" && Math.random() < .6){ R.agents.director.say("César: necesito partidas nuevas de Magic Chess", "ask", 5); feed(R,"Director pide material: partidas nuevas de Magic Chess"); R.agents.director.note("Pidió partidas nuevas"); }
+        d.k++; break;
+    }
+    d.step++;
+  }
+}
+
+/* ---------------- Modo en vivo ---------------- */
+const STORE_KEY = "oficina-canales-api";
+let api = {url:"", token:""};
+try { api = Object.assign(api, JSON.parse(localStorage.getItem(STORE_KEY) || "{}")); } catch(e){}
+if (!api.url && /^https?:/.test(location.protocol) && /\/panel\/?$/.test(location.pathname)) api.url = location.origin;
+const live = {prev:{}, insights:{}, req:{}, inbox:{}, timer:null, last:0, first:{}};
+const statusEl = document.getElementById("status");
+function setStatus(kind, text){ statusEl.className = "pill " + kind; statusEl.querySelector("span").textContent = text; }
+
+async function getJSON(path){
+  const r = await fetch(api.url.replace(/\/$/,"") + path, {headers:{"x-token": api.token}});
+  if (r.status === 401) throw new Error("Token inválido");
+  if (!r.ok) throw new Error("La API respondió " + r.status);
+  return r.json();
+}
+const STAGE = {
+  approved:   ["director","guionista","Aprobada"],
+  scripted:   ["guionista","productor","Guion listo"],
+  produced:   ["productor","miniaturas","Video listo"],
+  thumbnailed:["miniaturas","director","Miniaturas listas"],
+};
+async function pollRoom(R){
+  const [queue, ins, dec] = await Promise.all([
+    getJSON(`/channels/${R.id}/queue`), getJSON(`/channels/${R.id}/insights`), getJSON(`/channels/${R.id}/decisions`),
+  ]);
+  let mets = []; try { mets = await getJSON(`/channels/${R.id}/metrics`); } catch(e){}
+  const prev = live.prev[R.id] || {}; const first = !live.first[R.id];
+  const counts = {};
+  for (const j of queue){
+    counts[j.status] = (counts[j.status]||0) + 1;
+    const was = prev[j.id]; prev[j.id] = j.status;
+    if (first || was === j.status) continue;
+    const title = (j.title || "").slice(0,48);
+    if (STAGE[j.status]){ const [a,b,m] = STAGE[j.status]; handoff(R,a,b,`${m}: ${title}`, {ack:"Recibido"}); }
+    else if (j.status === "scheduled"){
+      const when = j.scheduled_for ? new Date(j.scheduled_for).toLocaleString("es-MX",{weekday:"short", hour:"2-digit", minute:"2-digit"}) : "";
+      handoff(R,"director","publicador",`Programar: ${title}`, {after: () => handoff(R,"publicador","portal",`Programado ${when}`, {kind:"ok"})});
+    }
+    else if (j.status === "published"){ R.agents.analista.say(`Publicado: ${title}`, "ok"); feed(R, `Publicado: ${title}`); }
+    else if (j.status === "failed"){ R.agents.director.say(`Falló: ${title}`, "bad", 6); feed(R, `Falló: ${title} (${j.error || "sin detalle"})`); R.agents.director.note(`Falló ${title}`); }
+    else if (j.status === "rejected"){ R.agents.director.note(`Rechazó ${title}`); }
+  }
+  live.prev[R.id] = prev;
+  const seenIns = live.insights[R.id] || new Set();
+  for (const i of ins){
+    if (seenIns.has(i.id)) continue; seenIns.add(i.id);
+    if (!first) handoff(R,"analista","director",`Aprendí: ${i.statement}`, {ack:"Anotado", kind:"ok"});
+  }
+  live.insights[R.id] = seenIns;
+  const lastDec = dec[0];
+  const reqKey = lastDec ? (lastDec.requests_to_human || []).join("|") : "";
+  if (reqKey && live.req[R.id] !== reqKey){
+    live.req[R.id] = reqKey;
+    R.agents.director.say("César: " + lastDec.requests_to_human[0], "ask", 7);
+    feed(R, "Director te pide: " + lastDec.requests_to_human.join(" · "));
+  }
+  const ret = mets.filter(m => m.window === "7d").slice(0,7).map(m => m.avg_view_pct).reverse();
+  if (ret.length){ R.chart.values = ret; drawChart(R); }
+  live.inbox[R.id] = {
+    investigador: "Propone ideas en cada ciclo",
+    director: `${counts.thumbnailed||0} por calendarizar`,
+    guionista: `${counts.approved||0} aprobadas por escribir`,
+    productor: `${counts.scripted||0} guiones por producir`,
+    miniaturas: `${counts.produced||0} videos sin miniatura`,
+    publicador: `${counts.scheduled||0} programados en YouTube`,
+    analista: `${ins.length} lecciones en memoria`,
+  };
+  if (first){
+    live.first[R.id] = true;
+    R.agents.director.say(`Cola: ${counts.thumbnailed||0} listos, ${counts.scheduled||0} programados, ${counts.published||0} publicados`, "info", 6);
+    feed(R, `Conectado. ${queue.length} trabajos en la cola, ${ins.length} lecciones en memoria`);
+  }
+}
+async function poll(){
+  try {
+    await Promise.all(ROOMS.map(pollRoom));
+    live.last = Date.now(); setStatus("live","En vivo");
+  } catch(e){ setStatus("err", "Sin conexión: " + e.message); }
+}
+function startLive(){
+  mode = "live"; clearInterval(live.timer);
+  live.prev = {}; live.insights = {}; live.first = {}; live.req = {};
+  setStatus("demo","Conectando…"); poll(); live.timer = setInterval(poll, 20000);
+}
+function startDemo(){ mode = "demo"; clearInterval(live.timer); setStatus("demo","Demo"); }
+
+const modal = document.getElementById("connect");
+const urlIn = document.getElementById("api-url"), tokIn = document.getElementById("api-token"), errEl = document.getElementById("connect-err");
+document.getElementById("open-connect").onclick = () => { urlIn.value = api.url; tokIn.value = api.token; errEl.textContent = ""; modal.hidden = false; urlIn.focus(); };
+document.getElementById("cancel-connect").onclick = () => { modal.hidden = true; };
+document.getElementById("use-demo").onclick = () => { modal.hidden = true; startDemo(); };
+document.getElementById("connect-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const url = urlIn.value.trim(), token = tokIn.value.trim();
+  if (!/^https?:\/\//.test(url)){ errEl.textContent = "Escribe la URL completa, empezando con https://"; return; }
+  errEl.textContent = "Probando conexión…";
+  try {
+    const r = await fetch(url.replace(/\/$/,"") + "/health");
+    if (!r.ok) throw new Error("respondió " + r.status);
+    api = {url, token};
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(api)); } catch(_){}
+    modal.hidden = true; startLive();
+  } catch(err){ errEl.textContent = "No pude llegar a la API (" + err.message + "). Revisa la URL y que el servicio esté encendido."; }
+});
+if (api.url && api.token) startLive();
+
+/* ---------------- Ficha del agente ---------------- */
+let selected = null;
+const panel = document.getElementById("agent");
+function renderAgent(){
+  if (!selected) return;
+  const a = selected, R = a.room;
+  document.getElementById("a-sw").style.background = "#" + new THREE.Color(ROLES[a.role].color).getHexString();
+  document.getElementById("a-name").textContent = ROLES[a.role].name;
+  document.getElementById("a-room").textContent = R.name;
+  document.getElementById("a-desc").textContent = ROLES[a.role].desc;
+  document.getElementById("a-state").textContent = a.statusText();
+  document.getElementById("a-inbox").textContent = mode === "live" ? ((live.inbox[R.id]||{})[a.role] || "Sin datos aún") : "Actividad simulada (modo demo)";
+  const ul = document.getElementById("a-log"); ul.innerHTML = "";
+  if (!a.log.length){ const li = document.createElement("li"); li.textContent = "Todavía nada en esta sesión."; ul.append(li); }
+  for (const l of a.log){ const li = document.createElement("li"); li.textContent = `${String(l.t.getHours()).padStart(2,"0")}:${String(l.t.getMinutes()).padStart(2,"0")} · ${l.text}`; ul.append(li); }
+}
+document.getElementById("agent-close").onclick = () => { selected = null; panel.hidden = true; };
+setInterval(() => { if (selected) document.getElementById("a-state").textContent = selected.statusText(); }, 500);
+
+/* ---------------- Cámara e interacción ---------------- */
+const FOCUS = {all:{x:0,size:30}, lcmc:{x:ROOMS[0].ox,size:17}, gaming:{x:ROOMS[1].ox,size:17}};
+function focus(k){
+  view.goalTarget.set(FOCUS[k].x, 0, 0.4); view.goalSize = FOCUS[k].size;
+  for (const id of ["all","lcmc","gaming"]) document.getElementById("v-"+id).setAttribute("aria-pressed", String(id===k));
+}
+document.getElementById("v-all").onclick = () => focus("all");
+document.getElementById("v-lcmc").onclick = () => focus("lcmc");
+document.getElementById("v-gaming").onclick = () => focus("gaming");
+
+function resize(){
+  const w = host.clientWidth || innerWidth, h = host.clientHeight || innerHeight;
+  renderer.setSize(w, h); camera.userData.aspect = w / h;
+}
+function placeCamera(){
+  const a = camera.userData.aspect || 1;
+  let size = view.size; if (a < 1) size = view.size / a * 0.62;
+  camera.left = -size*a/2; camera.right = size*a/2; camera.top = size/2; camera.bottom = -size/2;
+  camera.updateProjectionMatrix();
+  const r = 60, t = view.target;
+  camera.position.set(t.x + r*Math.cos(view.el)*Math.sin(view.az), r*Math.sin(view.el), t.z + r*Math.cos(view.el)*Math.cos(view.az));
+  camera.lookAt(t);
+}
+addEventListener("resize", resize); resize();
+
+const pointers = new Map(); let drag = null, pinch = null;
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+host.addEventListener("pointerdown", (e) => {
+  host.setPointerCapture(e.pointerId); pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (pointers.size === 1) drag = {x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY, moved:0};
+  if (pointers.size === 2){ const [p1,p2] = [...pointers.values()]; pinch = {d:Math.hypot(p1.x-p2.x,p1.y-p2.y), size:view.goalSize}; drag = null; }
+});
+host.addEventListener("pointermove", (e) => {
+  if (!pointers.has(e.pointerId)) return; pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (pinch && pointers.size === 2){ const [p1,p2] = [...pointers.values()]; const d = Math.hypot(p1.x-p2.x,p1.y-p2.y); view.goalSize = clampSize(pinch.size * pinch.d / Math.max(d,1)); return; }
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+  drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (drag.moved > 6) host.classList.add("dragging");
+  view.az -= dx * 0.006; view.el = Math.max(0.45, Math.min(1.45, view.el + dy * 0.004));
+});
+function endPointer(e){
+  pointers.delete(e.pointerId); host.classList.remove("dragging");
+  if (drag && drag.moved <= 6 && pointers.size === 0) pick(e.clientX, e.clientY);
+  if (pointers.size < 2) pinch = null; if (pointers.size === 0) drag = null;
+}
+host.addEventListener("pointerup", endPointer); host.addEventListener("pointercancel", endPointer);
+host.addEventListener("wheel", (e) => { e.preventDefault(); view.goalSize = clampSize(view.goalSize * (1 + Math.sign(e.deltaY)*0.12)); }, {passive:false});
+function clampSize(s){ return Math.max(7, Math.min(46, s)); }
+function pick(x, y){
+  const rect = host.getBoundingClientRect();
+  ndc.set(((x-rect.left)/rect.width)*2-1, -((y-rect.top)/rect.height)*2+1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickables, false)[0];
+  if (hit && hit.object.userData.agent){ selected = hit.object.userData.agent; panel.hidden = false; renderAgent(); selected.say(`Hola, soy ${ROLES[selected.role].name}`, "info", 2); }
+}
+
+/* ---------------- Bucle ---------------- */
+const clock = new THREE.Clock();
+function frame(){
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  view.target.lerp(view.goalTarget, Math.min(1, dt*4)); view.size += (view.goalSize - view.size) * Math.min(1, dt*4);
+  placeCamera();
+  if (mode === "demo") demoTick(dt);
+  for (const R of ROOMS){
+    for (const a of Object.values(R.agents)) a.update(dt, t);
+    R.portalArch.material.emissiveIntensity = 0.7 + 0.3*Math.sin(t*2);
+  }
+  for (let i = particles.length-1; i >= 0; i--){
+    const p = particles[i]; p.userData.life -= dt; p.userData.v.y -= 4*dt;
+    p.position.addScaledVector(p.userData.v, dt); p.rotation.x += dt*4; p.material.opacity = Math.max(0, p.userData.life/1.4);
+    if (p.userData.life <= 0){ scene.remove(p); p.geometry.dispose(); p.material.dispose(); particles.splice(i,1); }
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+if (innerWidth < 640) focus("lcmc");
+feed(ROOMS[0], "Oficina abierta en modo demo. Conecta tu API para ver la actividad real.");
+requestAnimationFrame(frame);
+})();
+</script>

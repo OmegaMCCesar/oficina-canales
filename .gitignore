@@ -1,0 +1,6 @@
+.env
+data/
+media/
+client_secret.json
+firebase-sa.json
+__pycache__/

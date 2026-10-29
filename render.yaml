@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: oficina-canales-api
+    runtime: python
+    buildCommand: apt-get install -y ffmpeg || true; pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MODE
+        value: live
+      - key: API_TOKEN
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+    disk:
+      name: media
+      mountPath: /opt/render/project/src/media
+      sizeGB: 10
+
+  - type: cron
+    name: oficina-canales-ciclo
+    runtime: python
+    schedule: "17 12 * * *"   # 06:17 hora CDMX (UTC-6)
+    buildCommand: pip install -r requirements.txt
+    startCommand: >
+      curl -s -X POST -H "x-token: $API_TOKEN" https://oficina-canales-api.onrender.com/run
+    envVars:
+      - key: API_TOKEN
+        fromService:
+          type: web
+          name: oficina-canales-api
+          envVarKey: API_TOKEN

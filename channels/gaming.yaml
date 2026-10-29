@@ -1,0 +1,41 @@
+id: gaming
+name: "LCMC Games"
+youtube_handle: "@LCMCGAMES"
+youtube_channel_id: ""
+niche: "Mobile Legends: Bang Bang y Magic Chess: jugadas, highlights, guías de héroes y composiciones, análisis de partidas."
+audience: "Jugadores hispanohablantes de MLBB y Magic Chess, rango Épico a Mítico, 16-30 años."
+tone: "Energético, de jugador a jugador, con humor ligero, nada de gritos. Comentario útil: qué pasó y por qué funcionó."
+language: es-MX
+games:
+  - "Mobile Legends: Bang Bang"
+  - "Magic Chess: Go Go"
+
+cadence:
+  shorts_per_day: 2
+  longs_per_week: 1
+  publish_hours_local: [15, 21]
+  timezone: America/Mexico_City
+  min_gap_hours: 5
+  max_queue_ready: 15
+
+production:
+  kind: gameplay
+  voice: es-US-Neural2-A
+  language: es-MX
+  short_max_seconds: 45
+  long_target_minutes: 10
+
+topic_seeds:
+  - "Mejor héroe del parche actual"
+  - "Composición ganadora de Magic Chess esta temporada"
+  - "Cómo escapar de un gank en jungla"
+  - "Outplay 1v3 con asesino"
+
+banned_topics:
+  - "Hacks, mods o cuentas vendidas"
+
+director_rules: |
+  - Material = partidas grabadas por César en media/gaming/inbox. Si no hay material nuevo, el Director pide partidas específicas (héroe/modo) en lugar de inventar.
+  - Un short por momento destacado; nunca dos shorts de la misma partida el mismo día.
+  - Títulos con el héroe y el resultado concreto ("Fanny 15 kills en Mítico"), sin clickbait falso.
+  - Seguir meta del parche: el Investigador reporta héroes en tendencia cada semana.

@@ -1,0 +1,46 @@
+id: lcmc
+name: "LCMC - Servir para Servir"
+youtube_handle: "@LCMC-ServirParaServir"
+youtube_channel_id: ""   # se llena con scripts/auth_youtube.py lcmc
+niche: "Línea blanca y refrigeración: diagnóstico, reparación y mantenimiento de refrigeradores, lavadoras, secadoras, minisplits y electrodomésticos."
+audience: "Técnicos de servicio en México y Latinoamérica, y usuarios que quieren entender o arreglar su electrodoméstico."
+tone: "Claro, directo, explicado como lo haría un técnico con 15 años de experiencia a un aprendiz. Sin tecnicismos innecesarios, ejemplos reales, cero relleno."
+language: es-MX
+
+cadence:
+  shorts_per_day: 1
+  longs_per_week: 2
+  publish_hours_local: [13, 20]
+  timezone: America/Mexico_City
+  min_gap_hours: 8
+  max_queue_ready: 10
+
+production:
+  kind: generated
+  voice: es-US-Neural2-B
+  language: es-MX
+  short_max_seconds: 58
+  long_target_minutes: 6
+  character: "Lumi, el personaje del canal: un asistente amable y curioso que explica cosas de electrodomésticos de forma simple."
+  image_style: "Ilustración plana, limpia, colores cálidos, fondo sencillo, un solo elemento principal por escena, estilo infografía amigable. Sin texto dentro de la imagen."
+
+topic_seeds:
+  - "Refrigerador no enfría: las 5 causas más comunes"
+  - "Cómo probar un compresor con multímetro"
+  - "Lavadora no centrifuga: qué revisar primero"
+  - "Minisplit gotea agua: causas y solución"
+  - "Error codes Samsung refrigerador"
+  - "Por qué se forma hielo en el congelador"
+  - "Secadora no calienta: resistencia o termofusible"
+  - "Cómo cargar gas R600a con seguridad"
+
+banned_topics:
+  - "Modificar equipos para evadir garantía"
+  - "Procedimientos sin desconectar la corriente"
+
+director_rules: |
+  - Prioriza problemas que la gente busca cuando algo se descompone (intención de búsqueda alta).
+  - Alterna entre contenido para técnicos y contenido para usuarios finales (60/40).
+  - Siempre incluir advertencia de seguridad cuando se abra un equipo o se manipule gas.
+  - Si un tema tuvo retención > 55% en 7 días, programa una secuela o variante en la siguiente semana.
+  - Nunca más de 1 short al día ni 2 largos a la semana, aunque haya cola.
