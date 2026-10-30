@@ -370,7 +370,10 @@ def storyboard(scenes: list[dict], out: Path, portrait: bool = True, cols: int =
             prm = _json.loads(sc.get("anim_params_json") or "{}")
         except Exception:
             prm = {}
-        if sc.get("visual") == "anim" and sc.get("anim"):
+        if sc.get("visual") == "doodle" and sc.get("shots"):
+            from . import doodle
+            im = doodle.compose(sc["shots"][0], 720 if portrait else 1280, 1280 if portrait else 720)
+        elif sc.get("visual") == "anim" and sc.get("anim"):
             im = frame(sc["anim"], prm if isinstance(prm, dict) else {}, 1.6, 720 if portrait else 1280,
                        1280 if portrait else 720, sc.get("lumi") or None)
         else:

@@ -48,7 +48,7 @@ ScaledBorderAndShadow: yes
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Cap,DejaVu Sans,{fs},&H00FFFFFF,&H00FFFFFF,&H00101010,&H80000000,1,0,0,0,100,100,0,0,1,6,2,2,40,40,{margin_v},1
 Style: Hook,DejaVu Sans,{int(fs*1.05)},&H00101010,&H00101010,{accent},{accent},1,0,0,0,100,100,0,0,3,14,0,8,50,50,{int(h*0.12)},1
-Style: Mark,DejaVu Sans,{int(fs*0.42)},&H66FFFFFF,&H66FFFFFF,&H66000000,&H00000000,1,0,0,0,100,100,0,0,1,2,0,7,28,28,28,1
+Style: Mark,DejaVu Sans,{int(fs*0.42)},&H40303030,&H40303030,&H40FFFFFF,&H00000000,1,0,0,0,100,100,0,0,1,2,0,7,28,28,28,1
 Style: Banner,DejaVu Sans,{int(fs*0.62)},&H00101010,&H00101010,{accent},{accent},1,0,0,0,100,100,0,0,3,12,0,1,40,40,{int(h*0.06)},1
 Style: Cta,DejaVu Sans,{int(fs*0.7)},&H00FFFFFF,&H00FFFFFF,&H000000CC,&H000000CC,1,0,0,0,100,100,0,0,3,14,0,8,40,40,{int(h*0.30)},1
 

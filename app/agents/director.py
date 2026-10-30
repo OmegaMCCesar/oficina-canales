@@ -177,8 +177,13 @@ detalles menores no bloquean (score >= 7 con issues menores puede aprobarse)."""
 
 
 def review_animation(cfg, job, plan, code_issues: list[str]) -> dict:
-    lines = [f"{i+1}. «{s['text']}» -> {s.get('visual')}:{s.get('anim')} {s.get('anim_params_json')} lumi={s.get('lumi')}"
-             for i, s in enumerate(job.script.scenes)]
+    def _desc(s):
+        if s.get("shots"):
+            return " | ".join(f"Lumi {x.get('lumi') or '-'} + {x.get('prop') or 'sin objeto'}({x.get('estado', 'normal')})"
+                              f" + {x.get('overlay', 'ninguno')}" + (f" «{x['texto']}»" if x.get("texto") else "") +
+                              (f" valor {x['valor']}" if x.get("valor") else "") for x in s["shots"])
+        return f"{s.get('visual')}:{s.get('anim')} {s.get('anim_params_json')} lumi={s.get('lumi')}"
+    lines = [f"{i+1}. «{s['text']}» -> {_desc(s)}" for i, s in enumerate(job.script.scenes)]
     user = f"""{channel_brief(cfg)}
 VIDEO: {job.script.title} ({job.idea.format})
 EQUIPO: {plan.appliance}

@@ -80,6 +80,36 @@ def _overlay(img_path: Path, text: str, out: Path, lumi: str | None = None, bran
     return out
 
 
+def _doodle_thumb(job: VideoJob, text: str, lumi: str, out: Path, k: int) -> Path:
+    """Miniatura en el estilo caricatura: texto enorme a la izquierda, Lumi + el objeto del video a la derecha."""
+    from ..tools import doodle
+    shots = [x for s in job.script.scenes for x in (s.get("shots") or [])]
+    prop_shot = next((x for x in shots if x.get("prop") and x.get("estado") not in ("normal", "")), None) or \
+        next((x for x in shots if x.get("prop")), None) or {}
+    expr = {"sorpresa": "sorprendido", "advertencia": "preocupado", "diagnostico": "pensando", "solucion": "feliz",
+            "idea": "explicando", "pensando": "pensando"}.get(lumi or "", "sorprendido")
+    shot = {"lumi": expr if k == 0 else "preocupado", "prop": prop_shot.get("prop", ""), "estado": prop_shot.get("estado", "falla"),
+            "overlay": ["x", "pregunta"][k % 2], "valor": prop_shot.get("valor", ""), "lumi_pos": "derecha"}
+    art = doodle.compose(shot, 820, 720)
+    img = Image.new("RGB", (1280, 720), (255, 255, 255))
+    img.paste(art, (460, 0))
+    d = ImageDraw.Draw(img)
+    try:
+        fnt = ImageFont.truetype(str(ffmpeg.FONT_PATH), 112)
+    except OSError:
+        fnt = ImageFont.load_default()
+    lines = ffmpeg.wrap_lines(d, text.upper(), fnt, 560)[:3]
+    y = 360 - len(lines) * 64
+    for i, line in enumerate(lines):
+        tw = d.textlength(line, font=fnt)
+        if i == 0:
+            d.rounded_rectangle([30, y - 6, 30 + tw + 36, y + 122], radius=18, fill=(183, 242, 26), outline=(22, 22, 28), width=8)
+        d.text((48, y), line, font=fnt, fill=(22, 22, 28), stroke_width=0 if i == 0 else 3, stroke_fill="white")
+        y += 128
+    img.save(out, quality=92)
+    return out
+
+
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     assert job.script and job.video_path
     user = f"""{channel_brief(cfg)}
@@ -108,6 +138,9 @@ ESTILO VISUAL: {cfg.production.image_style}
     paths: list[str] = []
     for k, v in enumerate(out.variants[:2]):
         base = folder / f"thumb_base_{k}.jpg"
+        if cfg.production.style == "doodle" and job.script.scenes:
+            paths.append(str(_doodle_thumb(job, v.text, v.lumi, folder / f"thumb_{k}.jpg", k)))
+            continue
         is_lcmc = cfg.production.kind == "generated"
         if cfg.production.kind == "gameplay" and job.script.highlights:
             h = job.script.highlights[0]

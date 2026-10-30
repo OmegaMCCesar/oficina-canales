@@ -126,6 +126,7 @@ CATÁLOGO DEL STUDIO QUINTO SOL: {studio_catalog() or '(vacío)'}"""
     if out.cta_end and (not scenes or out.cta_end.strip() not in scenes[-1]["text"]):
         scenes.append({"text": out.cta_end, "on_screen": "", "visual": "anim", "anim": "titulo",
                        "anim_params_json": '{"texto": "SÍGUEME", "sub": "%s"}' % cfg.production.brand_name,
+                       "shots": [{"lumi": "celebrando", "texto": "¡SÍGUEME!"}],
                        "lumi": "celebracion", "stock_query": "", "visual_prompt": ""})
     if fmt == "short" and out.loop_line:
         first = dict(scenes[0])

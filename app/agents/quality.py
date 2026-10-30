@@ -105,9 +105,12 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     if cfg.production.kind == "generated" and sc.scenes:
         warn = _safety(job)
         if warn:
-            sc.scenes.insert(1 if len(sc.scenes) > 1 else 0, {"text": warn, "on_screen": "SEGURIDAD", "visual": "anim",
+            sc.scenes.insert(1 if len(sc.scenes) > 1 else 0, {"text": warn, "on_screen": "SEGURIDAD", "visual": "doodle", "lumi": "preocupado",
+                             "shots": [{"lumi": "preocupado", "prop": "" if "gas" in warn else "enchufe",
+                                        "estado": "desconectado", "overlay": "alerta",
+                                        "texto": "VENTILA" if "gas" in warn else "DESCONECTA"}],
                              "anim": "titulo", "anim_params_json": json.dumps({"texto": "⚠ SEGURIDAD", "sub": warn[:60]}, ensure_ascii=False),
-                             "lumi": "advertencia", "stock_query": "", "visual_prompt": ""})
+                             "stock_query": "", "visual_prompt": ""})
             sc.body = " ".join(s["text"] for s in sc.scenes)
             applied.append("Agregué advertencia de seguridad")
     from .packaging import brief

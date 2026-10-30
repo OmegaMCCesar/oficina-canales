@@ -18,7 +18,7 @@ from ..config import MEDIA_DIR, ChannelConfig, settings
 from ..db import save_job
 from ..llm import generate_image
 from ..models import VideoJob
-from ..tools import anim, compose, ffmpeg
+from ..tools import anim, compose, doodle, ffmpeg
 
 log = logging.getLogger("producer.generated")
 
@@ -233,6 +233,17 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         lumi = scn.get("lumi") or None
         visual = scn.get("visual", "anim")
         made = False
+        doodle_style = p.style == "doodle"
+        if doodle_style:
+            lumi = None    # el Lumi brillante en círculo no va en el estilo caricatura
+        if doodle_style and visual not in ("photo", "web", "icon") and (scn.get("shots") or visual in ("doodle", "anim")):
+            try:
+                shots = scn.get("shots") or [{"lumi": doodle.LEGACY.get(scn.get("lumi") or "", scn.get("lumi") or "explicando"),
+                                              "texto": " ".join((scn.get("on_screen") or "").split()[:3])}]
+                doodle.render(shots, secs, clip, w, h)
+                made = True
+            except Exception as e:
+                log.warning("doodle falló (%s); uso plantilla", e)
         if visual in ("web", "icon") and scn.get("img_url"):
             try:
                 src = _fetch(scn["img_url"], folder)
@@ -289,12 +300,19 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         clips.append(clip)
         if k == 0 and cesar_seg:
             cc = folder / "clip_cesar.mp4"
-            anim.render("titulo", {"texto": "LA VOZ DE CÉSAR", "sub": "Técnico · 15 años en línea blanca"}, cesar_seg[1], cc, w, h, "confirmacion")
+            if p.style == "doodle":
+                doodle.render([{"lumi": "feliz", "prop": "microfono", "texto": "LA VOZ DE CÉSAR", "lumi_pos": "derecha"}],
+                              cesar_seg[1], cc, w, h)
+            else:
+                anim.render("titulo", {"texto": "LA VOZ DE CÉSAR", "sub": "Técnico · 15 años en línea blanca"}, cesar_seg[1], cc, w, h, "confirmacion")
             clips.append(cc)
 
     # 3) tarjeta final (solo largos: en shorts rompe el loop)
     total = total_voice
-    if not portrait:
+    if not portrait and p.style == "doodle":
+        clips.append(doodle.render([{"lumi": "celebrando", "texto": "¡SUSCRÍBETE!"}], 5.0, folder / "clip_end.mp4", w, h))
+        total += 5.0
+    elif not portrait:
         card = compose.card_png([sc.cta_end or "¡Suscríbete!"], folder / "endcard.png", w, h,
                                 sub=sc.comment_question or p.brand_name, logo=compose.ASSETS / "brand" / f"{cfg.id}.png")
         clips.append(compose.image_clip(card, 5.0, folder / "clip_end.mp4", w, h, 1))
