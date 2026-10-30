@@ -90,20 +90,20 @@ def _card_image(text: str, out_path: Path, aspect: str) -> Path:
 
     from .tools.ffmpeg import font, wrap_lines
 
-    w, h = (1080, 1920) if aspect == "9:16" else (1920, 1080)
+    w, h = (720, 1280) if aspect == "9:16" else (1280, 720)
     img = Image.new("RGB", (w, h))
     d = ImageDraw.Draw(img)
     top, bot = (32, 44, 78), (242, 166, 90)
     for y in range(h):
         t = y / h
         d.line([(0, y), (w, y)], fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
-    fnt = font(76 if aspect == "9:16" else 64)
+    fnt = font(52 if aspect == "9:16" else 44)
     concept = text.split(".")[0][:120]
     lines = wrap_lines(d, concept, fnt, int(w * 0.8))[:5]
     y = h * 0.32
     for l in lines:
         d.text(((w - d.textlength(l, font=fnt)) / 2, y), l, font=fnt, fill="white", stroke_width=3, stroke_fill=(20, 20, 40))
-        y += 96
+        y += 66
     img.save(out_path)
     return out_path
 

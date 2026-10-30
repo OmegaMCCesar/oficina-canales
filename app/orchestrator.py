@@ -49,8 +49,28 @@ def _keepalive(stop):
             pass
 
 
+import threading as _th
+
+_RUN_LOCK = _th.Lock()   # un solo ciclo a la vez en todo el servidor (memoria limitada)
+
+
+def is_running() -> bool:
+    return _RUN_LOCK.locked()
+
+
 def run_channel(channel_id: str, publish: bool = True) -> dict:
     """Ejecuta el ciclo y SIEMPRE deja registro (aunque falle) para que el panel lo muestre."""
+    import threading
+    if not _RUN_LOCK.acquire(blocking=False):
+        act(channel_id, "director", "Ya hay un ciclo en marcha; espera a que termine", kind="ask")
+        return {"channel": channel_id, "status": "busy"}
+    try:
+        return _run_guarded(channel_id, publish)
+    finally:
+        _RUN_LOCK.release()
+
+
+def _run_guarded(channel_id: str, publish: bool) -> dict:
     import threading
     stop = threading.Event()
     threading.Thread(target=_keepalive, args=(stop,), daemon=True).start()
@@ -82,6 +102,7 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     report: dict = {"channel": channel_id}
 
     act(cfg.id, "director", "¡Arranca el ciclo, equipo!", kind="ok")
+    _dedupe(cfg)
     act(cfg.id, "analista", "Revisando métricas de los videos publicados…")
     a = analyst.run(cfg)
     report["analyst"] = a.summary if a else "sin métricas"
@@ -148,6 +169,21 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     act(cfg.id, "director", f"Ciclo terminado: {produced} video(s) listos", kind="ok")
     log.info("[%s] ciclo terminado: %s", cfg.id, report)
     return report
+
+
+def _dedupe(cfg) -> None:
+    """Rechaza trabajos repetidos (mismo título) y recorta la cola al máximo permitido."""
+    seen, kept = set(), 0
+    pending = sorted(jobs(cfg.id, "approved") + jobs(cfg.id, "scripted"), key=lambda j: j.created_at)
+    for j in pending:
+        key = j.idea.title.strip().lower()
+        if key in seen or kept >= cfg.cadence.max_queue_ready:
+            j.status = "rejected"
+            j.director_notes = "duplicado o cola llena"
+            save_job(j)
+        else:
+            seen.add(key)
+            kept += 1
 
 
 def run_all(publish: bool = True) -> list[dict]:

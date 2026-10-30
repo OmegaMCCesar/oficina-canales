@@ -110,7 +110,10 @@ Aprueba las que merecen producirse ahora (máximo {max(0, cfg.cadence.max_queue_
         requests_to_human=["Graba 2-3 partidas nuevas esta semana"] if cfg.production.kind == "gameplay" else [],
         rationale="dry-run",
     )
-    out = ask_json(SYSTEM, user, DirectorOut, fallback=fallback)
+    system = SYSTEM + ("\nEste canal es 100% GENERADO por IA (imágenes y voz): el humano NO graba nada. "
+                       "Solo pídele algo si necesitas confirmar un dato técnico; si no, deja requests_to_human vacío."
+                       if cfg.production.kind == "generated" else "")
+    out = ask_json(system, user, DirectorOut, fallback=fallback)
 
     approved_ids, rejected = [], {}
     by_id = {i.id: i for i in candidates}

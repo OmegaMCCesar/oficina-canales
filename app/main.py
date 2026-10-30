@@ -53,6 +53,8 @@ def health():
 
 @app.post("/run/{channel_id}", dependencies=[Depends(auth)])
 def run_channel(channel_id: str, bg: BackgroundTasks, publish: bool = True):
+    if orchestrator.is_running():
+        raise HTTPException(409, "Ya hay un ciclo en marcha; espera a que termine")
     bg.add_task(orchestrator.run_channel, channel_id, publish)
     return {"started": channel_id}
 

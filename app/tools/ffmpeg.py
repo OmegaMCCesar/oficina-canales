@@ -27,7 +27,7 @@ def font(size: int):
 
 
 def _run(args: list[str]) -> None:
-    r = subprocess.run([FFMPEG, "-y", "-loglevel", "error", *args], capture_output=True, text=True)
+    r = subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-threads", "1", *args], capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"ffmpeg: {r.stderr[-800:]}")
 
@@ -46,7 +46,7 @@ def wrap_lines(draw: ImageDraw.ImageDraw, text: str, fnt, max_w: int) -> list[st
     return lines
 
 
-def caption_png(text: str, w: int, h: int, out: Path, y_frac: float = 0.74, size: int = 58) -> Path:
+def caption_png(text: str, w: int, h: int, out: Path, y_frac: float = 0.74, size: int = 40) -> Path:
     """PNG transparente del tamaño del video con el subtítulo centrado."""
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -54,13 +54,13 @@ def caption_png(text: str, w: int, h: int, out: Path, y_frac: float = 0.74, size
     lines = wrap_lines(d, text, fnt, int(w * 0.86))[:4]
     lh = int(size * 1.25)
     y = int(h * y_frac) - (len(lines) * lh) // 2
-    pad = 22
+    pad = 16
     box_w = max(d.textlength(l, font=fnt) for l in lines) if lines else 0
     d.rounded_rectangle([(w - box_w) / 2 - pad, y - pad / 2, (w + box_w) / 2 + pad, y + len(lines) * lh + pad / 2],
-                        radius=24, fill=(0, 0, 0, 140))
+                        radius=18, fill=(0, 0, 0, 140))
     for l in lines:
         x = (w - d.textlength(l, font=fnt)) / 2
-        d.text((x, y), l, font=fnt, fill="white", stroke_width=4, stroke_fill="black")
+        d.text((x, y), l, font=fnt, fill="white", stroke_width=3, stroke_fill="black")
         y += lh
     img.save(out)
     return out
@@ -78,10 +78,10 @@ def fit_image(src: Path, w: int, h: int, out: Path) -> Path:
 
 def scene_clip(image: Path, audio: Path, out: Path, subtitle: str, portrait: bool = True) -> Path:
     """Imagen + audio -> clip con zoom suave y subtítulo."""
-    w, h = (1080, 1920) if portrait else (1920, 1080)
+    w, h = (720, 1280) if portrait else (1280, 720)
     base = fit_image(image, int(w * 1.1), int(h * 1.1), out.with_name(out.stem + "_base.jpg"))
     cap = caption_png(subtitle, w, h, out.with_name(out.stem + "_cap.png"), 0.76 if portrait else 0.85,
-                      58 if portrait else 46)
+                      40 if portrait else 32)
     fc = (f"[0:v]zoompan=z='min(zoom+0.0007,1.10)':d=100000:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
           f":s={w}x{h}:fps=30[bg];[bg][1:v]overlay=0:0[v]")
     _run(["-loop", "1", "-i", str(base), "-loop", "1", "-i", str(cap), "-i", str(audio),
@@ -92,10 +92,10 @@ def scene_clip(image: Path, audio: Path, out: Path, subtitle: str, portrait: boo
 
 def scene_still(image: Path, seconds: float, out: Path, subtitle: str, portrait: bool = True) -> Path:
     """Imagen -> clip mudo de `seconds` con zoom suave y subtítulo (la voz se mezcla al final)."""
-    w, h = (1080, 1920) if portrait else (1920, 1080)
+    w, h = (720, 1280) if portrait else (1280, 720)
     base = fit_image(image, int(w * 1.1), int(h * 1.1), out.with_name(out.stem + "_base.jpg"))
     cap = caption_png(subtitle, w, h, out.with_name(out.stem + "_cap.png"), 0.76 if portrait else 0.85,
-                      58 if portrait else 46)
+                      40 if portrait else 32)
     fc = (f"[0:v]zoompan=z='min(zoom+0.0007,1.10)':d=100000:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
           f":s={w}x{h}:fps=30[bg];[bg][1:v]overlay=0:0[v]")
     _run(["-loop", "1", "-i", str(base), "-loop", "1", "-i", str(cap), "-filter_complex", fc, "-map", "[v]",
@@ -120,11 +120,11 @@ def concat(clips: list[Path], out: Path) -> Path:
 
 def cut(src: Path, start: float, end: float, out: Path, to_portrait: bool = True, caption: str = "") -> Path:
     """Recorta un highlight de gameplay, lo lleva a 9:16 (crop centrado) y le pone rótulo."""
-    w, h = (1080, 1920) if to_portrait else (1920, 1080)
-    vf = "crop=ih*9/16:ih,scale=1080:1920" if to_portrait else "scale=1920:1080"
+    w, h = (720, 1280) if to_portrait else (1280, 720)
+    vf = "crop=ih*9/16:ih,scale=720:1280" if to_portrait else "scale=1280:720"
     args = ["-ss", f"{start:.2f}", "-to", f"{end:.2f}", "-i", str(src)]
     if caption:
-        cap = caption_png(caption, w, h, out.with_name(out.stem + "_cap.png"), 0.12, 60)
+        cap = caption_png(caption, w, h, out.with_name(out.stem + "_cap.png"), 0.12, 42)
         args += ["-i", str(cap), "-filter_complex", f"[0:v]{vf}[v0];[v0][1:v]overlay=0:0[v]",
                  "-map", "[v]", "-map", "0:a?"]
     else:
