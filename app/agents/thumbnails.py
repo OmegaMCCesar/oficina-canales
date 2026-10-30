@@ -94,7 +94,14 @@ ESTILO VISUAL: {cfg.production.image_style}
                   lumi="sorpresa", anim="ciclo_refrigeracion", anim_params_json='{"highlight": "compresor"}'),
         ThumbIdea(text="¿POR QUÉ FALLA?", visual_prompt=f"{job.idea.title}", lumi="advertencia"),
     ], chosen=0)
-    out = ask_json(SYSTEM, user, ThumbOut, fallback=fallback)
+    system = SYSTEM
+    if cfg.production.kind != "generated":
+        system = SYSTEM.split("Lumi (la mascota)")[0] + ("Canal de gaming: sin mascota ni plantillas (anim vacío). visual_prompt = ilustración "
+                  "genérica de fantasía épica, SIN nombrar personajes, el juego ni marcas. Luego elige la mejor como Director.")
+    out = ask_json(system, user, ThumbOut, fallback=fallback)
+    if cfg.production.kind != "generated":
+        for v in out.variants:
+            v.anim, v.lumi = "", None
 
     folder = MEDIA_DIR / cfg.id / job.id
     folder.mkdir(parents=True, exist_ok=True)

@@ -91,14 +91,38 @@ class Health:
     def failure(self, name: str, err: Exception, quota: bool = False) -> None:
         self.fails[name] += 1
         self.last_error[name] = str(err)[:200]
-        # cuota agotada: 1 hora fuera; otro error: 2 minutos
-        self.cool_until[name] = time.time() + (3600 if quota else 120)
+        self.cool_until[name] = time.time() + cooldown_for(err, quota)
+
+    def wait_hint(self, names: list[str]) -> float:
+        """Segundos hasta que vuelva el primero de estos proveedores."""
+        now = time.time()
+        return max(0.0, min((self.cool_until[n] for n in names), default=now) - now)
 
     def report(self) -> dict:
         return {"usados": dict(self.used), "fallas": dict(self.fails), "ultimo_error": self.last_error}
 
 
 health = Health()
+
+
+def cooldown_for(err: Exception, quota: bool) -> float:
+    """Límite por minuto: esperar lo que pide el proveedor. Cuota del día: 1 hora. Modelo inexistente: 1 día."""
+    import re
+    s = str(err).lower()
+    if "model_not_found" in s or "does not exist" in s or "no such model" in s or ("404" in s and "model" in s):
+        return 86400
+    if "request too large" in s or "context length" in s or "maximum context" in s:
+        return 3600     # este prompt nunca cabrá en ese modelo
+    if not quota:
+        return 90
+    if any(t in s for t in ("perday", "per day", "tokens per day", "requests per day", "(tpd)", "(rpd)", "daily")):
+        return 3600
+    m = re.search(r"(?:try again in|retry in|retrydelay['\":\s]+)\s*(?:(\d+)m)?\s*([\d.]+)\s*s", s)
+    if m:
+        return min(150.0, (int(m.group(1) or 0) * 60) + float(m.group(2)) + 2)
+    if any(t in s for t in ("per minute", "(tpm)", "(rpm)", "rate limit")):
+        return 60
+    return 900
 
 
 def is_quota_error(e: Exception) -> bool:

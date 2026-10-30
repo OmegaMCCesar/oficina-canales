@@ -42,6 +42,8 @@ class Idea(BaseModel):
     series_id: str = ""             # Showrunner: serie a la que pertenece
     episode: int = 0
     trailer_of: str = ""            # short tráiler: id del job largo al que manda
+    hero: str = ""                  # gaming generado: héroe del que trata
+    facts: str = ""                 # datos verificados (wiki) que el guion debe respetar
     created_at: datetime = Field(default_factory=now)
 
 

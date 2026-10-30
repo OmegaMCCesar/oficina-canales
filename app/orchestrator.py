@@ -16,7 +16,7 @@ import logging
 import traceback
 
 from . import producers
-from .agents import (analyst, animator, director, human_touch, monetization, packaging, quality, showrunner,)
+from .agents import (analyst, animator, director, hero_research, human_touch, monetization, packaging, quality, showrunner,)
 from .agents import publisher, researcher, retention, seo, thumbnails, writer
 from .config import get_channel, load_channels
 from .db import add_activity as act, jobs, log_run, save_job, store
@@ -26,9 +26,19 @@ log = logging.getLogger("orchestrator")
 MAX_PRODUCE_PER_RUN = 2   # tope por ciclo (cuidar cuota gratuita de Gemini)
 
 
+class _NoModels(Exception):
+    pass
+
+
 def _step(job, fn, cfg):
+    from .providers.text import ProvidersDown
     try:
         return fn(cfg, job)
+    except ProvidersDown as e:
+        # sin modelos de texto por cuota: el trabajo espera al siguiente ciclo, no se pierde
+        job.error = f"en espera: {e}"
+        save_job(job)
+        raise _NoModels(str(e))
     except Exception as e:
         job.status = "failed"
         job.error = f"{fn.__module__}: {e}"
@@ -103,6 +113,7 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     report: dict = {"channel": channel_id}
 
     act(cfg.id, "director", "¡Arranca el ciclo, equipo!", kind="ok")
+    _revive(cfg)
     _dedupe(cfg)
     act(cfg.id, "analista", "Revisando métricas de los videos publicados…")
     a = analyst.run(cfg)
@@ -121,6 +132,9 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     act(cfg.id, "showrunner", "Revisando las series: ¿qué capítulo sigue?")
     _safe(showrunner.run, cfg)
 
+    if cfg.production.kind == "gameplay":
+        act(cfg.id, "investigador", "Investigando un héroe en la wiki (historia y habilidades)…")
+        _safe(hero_research.run, cfg)
     act(cfg.id, "investigador", "Buscando temas: comentarios, tendencias y memoria del canal…")
     new_ideas = researcher.run(cfg)
     report["ideas"] = len(new_ideas)
@@ -137,56 +151,62 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     produced = 0
     queue = jobs(cfg.id, "approved") + jobs(cfg.id, "scripted") + jobs(cfg.id, "produced")
     queue.sort(key=lambda j: not j.anim_redo)   # lo que César pidió rehacer va primero
-    for job in queue:
-        if produced >= MAX_PRODUCE_PER_RUN:
-            break
-        title = job.idea.title[:60]
-        if job.status == "approved":
-            act(cfg.id, "director", f"Aprobada: {title}", to="empaque")
-            act(cfg.id, "empaque", "Diseñando 3 empaques (título + miniatura) antes del guion…")
-            job = _safe(packaging.run, cfg, job) or job
-            if job.package:
-                act(cfg.id, "empaque", f"«{job.package['title'][:50]}» + «{job.package['thumb_text']}»", to="director")
-                act(cfg.id, "director", f"Empaque aprobado: {job.package.get('reason', '')[:70]}", to="guionista", kind="ok")
-            act(cfg.id, "guionista", f"Escribiendo guion para cumplir la promesa: {title}")
-            job = _step(job, writer.run, cfg)
+    attempted = 0
+    try:
+        for job in queue:
+            if produced >= MAX_PRODUCE_PER_RUN or attempted >= MAX_PRODUCE_PER_RUN + 1:
+                break
+            attempted += 1
+            title = job.idea.title[:60]
+            if job.status == "approved":
+                act(cfg.id, "director", f"Aprobada: {title}", to="empaque")
+                act(cfg.id, "empaque", "Diseñando 3 empaques (título + miniatura) antes del guion…")
+                job = _safe(packaging.run, cfg, job) or job
+                if job.package:
+                    act(cfg.id, "empaque", f"«{job.package['title'][:50]}» + «{job.package['thumb_text']}»", to="director")
+                    act(cfg.id, "director", f"Empaque aprobado: {job.package.get('reason', '')[:70]}", to="guionista", kind="ok")
+                act(cfg.id, "guionista", f"Escribiendo guion para cumplir la promesa: {title}")
+                job = _step(job, writer.run, cfg)
+                if job.status == "scripted":
+                    act(cfg.id, "guionista", f"Guion listo ({len(job.script.scenes or job.script.highlights)} partes)", to="retencion")
+                    act(cfg.id, "retencion", "Afinando gancho de 1 s, ritmo, loop y llamadas a la acción…")
+                    job = retention.run(cfg, job)
+                    hook = job.script.hook_text or job.script.hook
+                    act(cfg.id, "retencion", f"Gancho: «{hook[:50]}» · {len(job.script.scenes or job.script.highlights)} cortes", to="seo")
+                    act(cfg.id, "seo", "Optimizando título, descripción, etiquetas y hashtags…")
+                    job = seo.run(cfg, job)
+                    act(cfg.id, "seo", f"Título: {job.script.title[:60]}", to="monetizacion")
+                    job = _safe(monetization.run, cfg, job) or job
+                    n_links = sum(1 for p in job.script.products if p.get("url"))
+                    act(cfg.id, "monetizacion", f"{n_links} link(s) de afiliado en la descripción" if n_links else
+                        "Descripción con link a tu sitio; sin productos con link aún", to="animador")
+                    job = _animate(cfg, job)
+                    if cfg.production.kind == "generated":
+                        job = _safe(human_touch.attach, cfg, job) or job
+                    act(cfg.id, "calidad", "Revisando datos técnicos, seguridad, promesa y originalidad…")
+                    job = _safe(quality.run, cfg, job) or job
+                    if job.status == "rejected":
+                        act(cfg.id, "director", f"Descartado por Calidad: {title}", kind="bad")
+                        continue
+            elif job.status == "scripted" and job.anim_redo:
+                act(cfg.id, "animador", f"César pidió rehacer la animación: «{job.anim_notes[:60]}»", kind="ask")
+                job = _animate(cfg, job, job.anim_notes)
             if job.status == "scripted":
-                act(cfg.id, "guionista", f"Guion listo ({len(job.script.scenes or job.script.highlights)} partes)", to="retencion")
-                act(cfg.id, "retencion", "Afinando gancho de 1 s, ritmo, loop y llamadas a la acción…")
-                job = retention.run(cfg, job)
-                hook = job.script.hook_text or job.script.hook
-                act(cfg.id, "retencion", f"Gancho: «{hook[:50]}» · {len(job.script.scenes or job.script.highlights)} cortes", to="seo")
-                act(cfg.id, "seo", "Optimizando título, descripción, etiquetas y hashtags…")
-                job = seo.run(cfg, job)
-                act(cfg.id, "seo", f"Título: {job.script.title[:60]}", to="monetizacion")
-                job = _safe(monetization.run, cfg, job) or job
-                n_links = sum(1 for p in job.script.products if p.get("url"))
-                act(cfg.id, "monetizacion", f"{n_links} link(s) de afiliado en la descripción" if n_links else
-                    "Descripción con link a tu sitio; sin productos con link aún", to="animador")
-                job = _animate(cfg, job)
-                if cfg.production.kind == "generated":
-                    job = _safe(human_touch.attach, cfg, job) or job
-                act(cfg.id, "calidad", "Revisando datos técnicos, seguridad, promesa y originalidad…")
-                job = _safe(quality.run, cfg, job) or job
-                if job.status == "rejected":
-                    act(cfg.id, "director", f"Descartado por Calidad: {title}", kind="bad")
-                    continue
-        elif job.status == "scripted" and job.anim_redo:
-            act(cfg.id, "animador", f"César pidió rehacer la animación: «{job.anim_notes[:60]}»", kind="ask")
-            job = _animate(cfg, job, job.anim_notes)
-        if job.status == "scripted":
-            act(cfg.id, "productor", f"Generando imágenes, voz y video: {title}")
-            job = _step(job, producers.run, cfg)
+                act(cfg.id, "productor", f"Generando imágenes, voz y video: {title}")
+                job = _step(job, producers.run, cfg)
+                if job.status == "produced":
+                    act(cfg.id, "productor", "Video renderizado", to="miniaturas")
             if job.status == "produced":
-                act(cfg.id, "productor", "Video renderizado", to="miniaturas")
-        if job.status == "produced":
-            act(cfg.id, "miniaturas", f"Diseñando 2 miniaturas: {title}")
-            job = _step(job, thumbnails.run, cfg)
-            if job.status == "thumbnailed":
-                act(cfg.id, "miniaturas", "Miniatura elegida", to="director")
-                produced += 1
-        if job.status == "failed":
-            act(cfg.id, "director", f"Falló: {title} ({(job.error or '')[:80]})", kind="bad")
+                act(cfg.id, "miniaturas", f"Diseñando 2 miniaturas: {title}")
+                job = _step(job, thumbnails.run, cfg)
+                if job.status == "thumbnailed":
+                    act(cfg.id, "miniaturas", "Miniatura elegida", to="director")
+                    produced += 1
+            if job.status == "failed":
+                act(cfg.id, "director", f"Falló: {title} ({(job.error or '')[:80]})", kind="bad")
+    except _NoModels as e:
+        act(cfg.id, "director", "Los modelos de texto gratis llegaron a su límite por ahora; los videos pendientes esperan al siguiente ciclo (no se pierden).", kind="ask")
+        report["paused"] = str(e)[:200]
     report["produced"] = produced
     _safe(human_touch.make_requests, cfg)
 
@@ -215,8 +235,12 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
 
 def _safe(fn, *args):
     """Un agente nuevo que falla no debe tirar el ciclo completo."""
+    from .providers.text import ProvidersDown
     try:
         return fn(*args)
+    except ProvidersDown as e:
+        log.warning("%s sin modelos de texto por ahora: %s", getattr(fn, "__module__", fn), e)
+        return None
     except Exception as e:
         log.exception("%s falló: %s", getattr(fn, "__module__", fn), e)
         return None
@@ -242,6 +266,17 @@ def _animate(cfg, job, cesar_notes: str = ""):
     job.anim_redo = False
     save_job(job)
     return job
+
+
+def _revive(cfg) -> None:
+    """Recupera trabajos que fallaron por causas pasajeras (sin modelos, archivo perdido en un reinicio)."""
+    for j in jobs(cfg.id, "failed"):
+        err = j.error or ""
+        if "Ningún proveedor" in err or "No such file" in err or "en espera" in err:
+            j.status = "scripted" if (j.script and (j.script.scenes or j.script.highlights)) else "approved"
+            j.video_path, j.thumbnail_paths, j.thumbnail_chosen = None, [], None
+            j.error = None
+            save_job(j)
 
 
 def _dedupe(cfg) -> None:

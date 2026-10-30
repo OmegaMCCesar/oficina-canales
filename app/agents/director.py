@@ -121,7 +121,7 @@ Aprueba las que merecen producirse ahora (máximo {max(0, cfg.cadence.max_queue_
         idea = by_id.get(a.idea_id)
         if not idea:
             continue
-        if cfg.production.kind == "gameplay" and not idea.source_media:
+        if cfg.production.kind == "gameplay" and not idea.source_media and not idea.facts:
             rejected[idea.id] = "sin partida grabada: no se puede producir"
             if "Graba partidas nuevas para: " + idea.title not in out.requests_to_human:
                 out.requests_to_human.append("Graba partidas nuevas para: " + idea.title)

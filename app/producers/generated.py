@@ -120,6 +120,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     folder.mkdir(parents=True, exist_ok=True)
     portrait = job.idea.format == "short"
     w, h = (720, 1280) if portrait else (1280, 720)
+    fps = 24 if portrait else 15          # largos: menos cuadros dibujados = render 40% más rápido
     p = cfg.production
 
     # 1) voz
@@ -171,7 +172,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
             except Exception:
                 params = {}
             try:
-                anim.render(scn["anim"], params if isinstance(params, dict) else {}, secs, clip, w, h, lumi)
+                anim.render(scn["anim"], params if isinstance(params, dict) else {}, secs, clip, w, h, lumi, fps=fps)
                 made = True
             except Exception as e:
                 log.warning("animación %s falló (%s)", scn.get("anim"), e)
@@ -194,7 +195,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         if not made:
             if visual in ("anim", "studio", "video") and not scn.get("visual_prompt"):
                 # sin imagen que pedir: tarjeta animada con la frase clave
-                anim.render("titulo", {"texto": scn.get("on_screen") or scn["text"][:60]}, secs, clip, w, h, lumi)
+                anim.render("titulo", {"texto": scn.get("on_screen") or scn["text"][:60]}, secs, clip, w, h, lumi, fps=fps)
             else:
                 img = generate_image(f"{scn.get('visual_prompt', scn['text'])}. {p.image_style}", folder / f"img_{k:02}.jpg",
                                      "9:16" if portrait else "16:9", query=query, sources=p.visual_sources, used=used,
@@ -238,7 +239,8 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         music = compose.music_track(total, folder / "musica.mp3", p.music_mood)
     except Exception as e:
         log.warning("sin música (%s)", e)
-    out = compose.final_mix(silent, voice, music, ass, folder / "final.mp4", total)
+    out = compose.final_mix(silent, voice, music, ass, folder / "final.mp4", total,
+                            preset="veryfast" if portrait else "superfast")
 
     for f in folder.glob("clip_*"):
         f.unlink(missing_ok=True)   # liberar disco; final.mp4 se queda

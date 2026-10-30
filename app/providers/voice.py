@@ -21,7 +21,7 @@ log = logging.getLogger("providers.voice")
 EDGE_VOICES = {"male": "es-MX-JorgeNeural", "female": "es-MX-DaliaNeural"}
 
 
-def _edge(text: str, out: Path, voice: str, rate: str) -> list[tuple[float, float, str]]:
+def _edge_once(text: str, out: Path, voice: str, rate: str) -> list[tuple[float, float, str]]:
     import edge_tts
 
     words: list[tuple[float, float, str]] = []
@@ -39,6 +39,61 @@ def _edge(text: str, out: Path, voice: str, rate: str) -> list[tuple[float, floa
     asyncio.run(run())
     if out.stat().st_size < 1000:
         raise RuntimeError("edge-tts devolvió audio vacío")
+    return words
+
+
+def _chunks(text: str, limit: int = 1400) -> list[str]:
+    """Parte el texto en bloques por oraciones (los guiones de 9 min son largos para una sola petición)."""
+    import re
+    parts, cur = [], ""
+    for sent in re.split(r"(?<=[.!?¿¡])\s+", text.strip()):
+        if cur and len(cur) + len(sent) + 1 > limit:
+            parts.append(cur)
+            cur = sent
+        else:
+            cur = (cur + " " + sent).strip()
+    if cur:
+        parts.append(cur)
+    return parts
+
+
+def _edge(text: str, out: Path, voice: str, rate: str) -> list[tuple[float, float, str]]:
+    """Edge TTS por bloques, con reintentos (a veces responde 'No audio was received' de forma pasajera)."""
+    import re
+    import time
+
+    from ..tools.ffmpeg import FFMPEG
+    from ..tools.tts import duration
+    text = re.sub(r"[^\w\s.,;:¿?¡!%°()/\-'\"áéíóúüñÁÉÍÓÚÜÑ]", " ", text)   # sin emojis ni símbolos raros
+    blocks = _chunks(text)
+    files, words, offset = [], [], 0.0
+    try:
+        for i, block in enumerate(blocks):
+            part = out.with_name(f"{out.stem}_p{i:02}.mp3")
+            last = None
+            for attempt in range(3):
+                try:
+                    ws = _edge_once(block, part, voice, rate)
+                    break
+                except Exception as e:
+                    last = e
+                    time.sleep(2 + attempt * 4)
+            else:
+                raise RuntimeError(f"edge-tts falló 3 veces: {last}")
+            words += [(a + offset, b + offset, w) for a, b, w in ws]
+            offset += duration(part) or (ws[-1][1] if ws else 0)
+            files.append(part)
+        if len(files) == 1:
+            files[0].replace(out)
+        else:
+            lst = out.with_name(out.stem + "_lista.txt")
+            lst.write_text("".join(f"file '{f.name}'\n" for f in files))
+            subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(lst),
+                            "-c", "copy", str(out)], check=True, cwd=str(out.parent))
+            lst.unlink(missing_ok=True)
+    finally:
+        for f in files:
+            f.unlink(missing_ok=True)
     return words
 
 

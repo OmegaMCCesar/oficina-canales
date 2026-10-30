@@ -58,8 +58,9 @@ repeticiones. Reglas con datos:
 - La retención se decide en los primeros 3 segundos: la PRIMERA escena es el gancho, y debe mostrar
   el problema o el resultado ya (nada de "hola", "en este video", "bienvenidos").
 - hook_text: máximo 6 palabras, en mayúsculas mentales, que provoquen "¿y luego?".
-- Un cambio visual cada 2-3 s: escenas de UNA frase corta (≤14 palabras). Shorts: 10-18 escenas.
-  Largos: 35-70 escenas.
+- Shorts: un cambio visual cada 2-3 s, escenas de UNA frase corta (≤14 palabras), 10-18 escenas.
+- Largos: CONSERVA TODO el contenido del guion (no resumas ni recortes: la duración de 8-10 min es la meta).
+  Escenas de 1-2 frases (≤30 palabras); puedes dividir escenas largas. El total de palabras debe quedar igual o mayor.
 - Shorts: duran lo mínimo que la idea necesita (20-50 s); sin intro; la última frase (loop_line)
   debe empatar con la primera para que el video se repita sin notarse.
 - Largos: CTA de suscripción a mitad (cta_mid, corto y con beneficio concreto) y CTA final.
@@ -116,6 +117,12 @@ CATÁLOGO DEL STUDIO QUINTO SOL: {studio_catalog() or '(vacío)'}"""
         log.warning("[%s] retención no disponible (%s); sigo con el guion original", cfg.id, e)
         return job
     scenes = [s.model_dump() for s in out.scenes if s.text.strip()]
+    before = sum(len(s["text"].split()) for s in sc.scenes)
+    after = sum(len(s["text"].split()) for s in scenes)
+    if fmt == "long" and after < before * 0.85:
+        # recortó contenido: se queda el guion completo del Guionista (el Animador asigna visuales después)
+        log.info("[%s] retención recortaba el largo (%d -> %d palabras); conservo el guion completo", cfg.id, before, after)
+        scenes = [dict(s, visual=s.get("visual", "image")) for s in sc.scenes]
     if out.cta_end and (not scenes or out.cta_end.strip() not in scenes[-1]["text"]):
         scenes.append({"text": out.cta_end, "on_screen": "", "visual": "anim", "anim": "titulo",
                        "anim_params_json": '{"texto": "SÍGUEME", "sub": "%s"}' % cfg.production.brand_name,

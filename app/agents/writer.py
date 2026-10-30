@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import json
 import logging
 
 from pydantic import BaseModel
@@ -15,6 +16,7 @@ from ..db import save_job
 from ..llm import ask_json
 from ..models import Script, VideoJob
 from .base import channel_brief, insights_block
+from .hero_research import CREDIT
 from .packaging import brief
 
 log = logging.getLogger("writer")
@@ -58,8 +60,11 @@ Reglas:
 - visual_prompt: describe UNA imagen simple y concreta para esa escena (sin texto en la imagen),
   siguiendo el estilo visual del canal.
 - Cierra con CTA de una frase (seguir / comentar su caso).
-- Shorts: 8-14 escenas de una frase, total 25-50 segundos narrados (70-120 palabras).
-- Largos: 18-30 escenas, 5-7 minutos (~900 palabras).
+- Shorts: 10-16 escenas de una frase, 40-58 segundos narrados (110-150 palabras).
+- Largos: la meta de palabras que se indica (8-10 minutos). Estructura: gancho, qué vas a lograr,
+  desarrollo por secciones (cómo funciona, síntomas, causas en orden de probabilidad, cómo medir/probar,
+  solución paso a paso, errores comunes, cuándo llamar a un técnico), resumen y cierre. Escenas de 1-3 frases.
+  Usa ejemplos reales y datos concretos (valores de medición, tiempos, marcas comunes) en vez de relleno.
 - Título: ≤ 70 caracteres, con la palabra clave al inicio. Descripción con 3 líneas útiles.
 - Si se abre un equipo o se manipula gas, incluye la advertencia de seguridad en el guion."""
 
@@ -70,8 +75,122 @@ decisivas) con timestamps exactos. Para un short elige 1-3 momentos que sumen < 
 qué pasó y por qué funcionó. Título con héroe y resultado concreto, sin clickbait."""
 
 
+def _target_words(cfg: ChannelConfig, fmt: str) -> int:
+    return 130 if fmt == "short" else int(cfg.production.long_target_minutes * 150)
+
+
+def _words(out: "ScriptOut") -> int:
+    return sum(len(s.text.split()) for s in out.scenes)
+
+
+class Extra(BaseModel):
+    after_scene: int          # número de escena (desde 1) tras la cual se insertan
+    scenes: list[Scene]
+
+
+class ExpandOut(BaseModel):
+    additions: list[Extra]
+
+
+SYSTEM_EXPAND = """Eres el GUIONISTA. El guion quedó corto para un video largo. Agrega escenas NUEVAS con contenido
+útil y concreto (no repitas ni rellenes): mediciones, valores típicos, casos reales, errores comunes, pasos detallados,
+precauciones. Indica después de qué escena va cada bloque para que el orden siga siendo lógico."""
+
+
+def _expand_if_short(cfg: ChannelConfig, out: "ScriptOut", target: int, user: str, fallback) -> "ScriptOut":
+    """Largos: si el guion no llega al 80 % de la meta, una ronda para ampliarlo (hasta 2)."""
+    if target <= 200 or out is fallback:
+        return out
+    for _ in range(2):
+        have = _words(out)
+        if have >= target * 0.8:
+            break
+        listing = "\n".join(f"{i+1}. {s.text}" for i, s in enumerate(out.scenes))
+        try:
+            ext = ask_json(SYSTEM_EXPAND, f"{user}\nGUION ACTUAL ({have} palabras, faltan ~{target - have}):\n{listing}",
+                           ExpandOut, fallback=ExpandOut(additions=[]))
+        except Exception as e:
+            log.warning("[%s] no pude ampliar el guion (%s)", cfg.id, e)
+            break
+        if not ext.additions:
+            break
+        for add in sorted(ext.additions, key=lambda a: -a.after_scene):
+            k = max(0, min(len(out.scenes), add.after_scene))
+            out.scenes[k:k] = add.scenes
+        log.info("[%s] guion ampliado: %d -> %d palabras (meta %d)", cfg.id, have, _words(out), target)
+    return out
+
+
+class HeroScene(BaseModel):
+    text: str
+    card: str = ""          # 1-4 palabras para tarjeta animada (nombre de habilidad, dato clave); vacío = imagen
+    visual_prompt: str = ""
+
+
+class HeroOut(BaseModel):
+    title: str
+    hook: str
+    hook_text: str          # ≤ 6 palabras en pantalla los primeros segundos
+    scenes: list[HeroScene]
+    cta: str
+    description: str
+    tags: list[str]
+
+
+SYSTEM_HERO = """Eres el GUIONISTA de un canal de Mobile Legends en español de México. Escribes un video sobre UN héroe
+usando SOLO los DATOS VERIFICADOS que te dan (vienen de la wiki en inglés: tradúcelos con naturalidad). No inventes
+números, builds, items, fechas ni datos que no estén en los datos. Si algo no está, no lo digas.
+Estructura del LARGO: gancho con lo más intrigante de su historia, quién es (historia/lore contado como relato),
+pasiva y cada habilidad (qué hace y para qué sirve en una pelea), cómo combinarlas, fortalezas y debilidades que se
+deduzcan de sus habilidades, y cierre preguntando a la audiencia. SHORT: un solo dato de su historia o su habilidad más
+vistosa, contado con gancho, 40-55 segundos.
+Escenas de 1-2 frases. En ~la mitad de las escenas pon `card` (nombre de la habilidad o dato clave, 1-4 palabras);
+en las demás deja card vacío y escribe `visual_prompt`: una ilustración GENÉRICA de fantasía épica (paisaje, arma,
+símbolo, ambiente) SIN nombrar al héroe, al juego ni ninguna marca, y sin describir el diseño exacto del personaje.
+Tono: de jugador a jugador, energético, sin gritos."""
+
+
+def _hero_script(cfg: ChannelConfig, job: VideoJob) -> Script:
+    idea = job.idea
+    target = 130 if idea.format == "short" else min(_target_words(cfg, "long"), 1100)
+    user = f"""{channel_brief(cfg)}
+{insights_block(cfg.id, 8)}
+HÉROE: {idea.hero}
+IDEA: {idea.title} — {idea.angle}
+{brief(job)}
+FORMATO: {idea.format}. META: ~{target} palabras narradas.
+DATOS VERIFICADOS:
+{idea.facts}"""
+    fb = HeroOut(title=idea.title[:70], hook=f"¿Sabías esto de {idea.hero}?", hook_text=f"¿QUIÉN ES {idea.hero.upper()}?",
+                 scenes=[HeroScene(text=f"Dato {k+1} sobre {idea.hero}.", card=(f"HABILIDAD {k}" if k % 2 else ""),
+                                   visual_prompt="Paisaje de fantasía épica al atardecer con un castillo")
+                         for k in range(8 if idea.format == "short" else 20)],
+                 cta="Comenta qué héroe quieres que cuente después", description=f"{idea.title}", tags=["mlbb", "mobile legends", idea.hero.lower()])
+    out = ask_json(SYSTEM_HERO, user, HeroOut, fallback=fb)
+    scenes = []
+    for s in out.scenes:
+        sc = {"text": s.text, "visual_prompt": s.visual_prompt, "lumi": ""}
+        if s.card.strip() or not s.visual_prompt.strip():
+            sc.update({"visual": "anim", "anim": "titulo", "on_screen": s.card,
+                       "anim_params_json": json.dumps({"texto": (s.card or idea.hero).upper()[:28], "sub": idea.hero}, ensure_ascii=False)})
+        else:
+            sc["visual"] = "image"
+        scenes.append(sc)
+    desc = out.description.strip() + "\n\n" + CREDIT
+    return Script(title=out.title, hook=out.hook, hook_text=out.hook_text, body=" ".join(s["text"] for s in scenes),
+                  cta=out.cta, cta_end=out.cta, description=desc, tags=out.tags, scenes=scenes)
+
+
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     idea = job.idea
+    if idea.facts:
+        job.script = _hero_script(cfg, job)
+        if job.package.get("title"):
+            job.script.title = job.package["title"][:100]
+        job.status = "scripted"
+        save_job(job)
+        log.info("[%s] guion de héroe listo: %s (%d palabras)", cfg.id, job.script.title, len(job.script.body.split()))
+        return job
     if cfg.production.kind == "gameplay":
         user = f"""{channel_brief(cfg)}
 {insights_block(cfg.id, 12)}
@@ -102,7 +221,10 @@ FORMATO: {idea.format}"""
             cta="Sígueme y cuéntame tu caso en comentarios.",
             description=f"{idea.title}. Explicado simple por Lumi.", tags=["refrigeracion", "linea blanca"],
         )
+        target = _target_words(cfg, idea.format)
+        user += f"\nMETA: {target} palabras narradas en total (cuenta tus palabras)."
         out = ask_json(SYSTEM_GEN, user, ScriptOut, fallback=fallback)
+        out = _expand_if_short(cfg, out, target, user, fallback)
         job.script = Script(title=out.title, hook=out.hook, body=" ".join(s.text for s in out.scenes),
                             cta=out.cta, description=out.description, tags=out.tags,
                             scenes=[s.model_dump() for s in out.scenes])

@@ -28,6 +28,8 @@ class Concept(BaseModel):
 
 class PackOut(BaseModel):
     concepts: list[Concept]
+    chosen: int = 0       # como Director: el de más clic Y que se cumple
+    reason: str = ""
 
 
 class PackPick(BaseModel):
@@ -65,13 +67,13 @@ INTENCIÓN DE BÚSQUEDA: {idea.search_intent}"""
                 promise="Arreglarlo sin técnico", curiosity="Qué tan fácil es"),
     ])
     try:
-        out = ask_json(SYSTEM, user, PackOut, fallback=fallback)
+        out = ask_json(SYSTEM + "\n" + SYSTEM_PICK.replace("Eres el DIRECTOR del canal.", "Después, actuando como el DIRECTOR,"),
+                       user, PackOut, fallback=fallback)
         concepts = out.concepts[:3] or fallback.concepts
-        listing = "\n".join(f"{i}. TÍTULO: {c.title} | MINIATURA: {c.thumb_text} — {c.thumb_visual} | PROMESA: {c.promise}"
-                            for i, c in enumerate(concepts))
-        pick = ask_json(SYSTEM_PICK, f"{channel_brief(cfg)}\n{insights_block(cfg.id, 10)}\nEMPAQUES:\n{listing}",
-                        PackPick, fallback=PackPick(chosen=0, reason="dry-run: el de error común suele dar más clic"))
+        pick = PackPick(chosen=out.chosen, reason=out.reason or "elegido por el Director")
     except Exception as e:
+        if type(e).__name__ == "ProvidersDown":
+            raise
         log.warning("[%s] empaque no disponible (%s); sigo con el título de la idea", cfg.id, e)
         return job
     k = pick.chosen if 0 <= pick.chosen < len(concepts) else 0

@@ -67,6 +67,8 @@ def originality(cfg: ChannelConfig, job: VideoJob) -> dict:
     for o in others:
         if o.id == job.idea.trailer_of:
             continue   # el tráiler se parece a su episodio a propósito
+        if job.idea.hero and o.idea.hero and o.idea.hero.lower() != job.idea.hero.lower():
+            continue   # serie de héroes: mismo formato de título, distinto héroe
         s = _sig(o)
         t = SequenceMatcher(None, me["title"], s["title"]).ratio()
         h = SequenceMatcher(None, me["hook"], s["hook"]).ratio() if me["hook"] and s["hook"] else 0

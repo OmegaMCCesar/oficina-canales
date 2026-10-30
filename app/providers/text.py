@@ -21,8 +21,15 @@ OPENAI_COMPAT = [
     ("openrouter", "OPENROUTER_API_KEY", "https://openrouter.ai/api/v1", "openai/gpt-oss-120b:free"),
     ("github", "GITHUB_MODELS_TOKEN", "https://models.github.ai/inference", "openai/gpt-4.1-mini"),
     ("mistral", "MISTRAL_API_KEY", "https://api.mistral.ai/v1", "mistral-medium-latest"),
-    ("groq-llama", "GROQ_API_KEY", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
+    # cada modelo de Groq tiene su propio límite por minuto: más modelos = más capacidad gratis
+    ("groq-20b", "GROQ_API_KEY", "https://api.groq.com/openai/v1", "openai/gpt-oss-20b"),
+    ("groq-qwen", "GROQ_API_KEY", "https://api.groq.com/openai/v1", "qwen/qwen3-32b"),
+    ("groq-kimi", "GROQ_API_KEY", "https://api.groq.com/openai/v1", "moonshotai/kimi-k2-instruct"),
 ]
+
+
+class ProvidersDown(RuntimeError):
+    """Ningún modelo de texto disponible ahora (cuotas): el trabajo debe esperar, no fallar."""
 
 
 def _extract_json(txt: str) -> dict:
@@ -31,7 +38,12 @@ def _extract_json(txt: str) -> dict:
     if m:
         txt = m.group(1)
     start = min([i for i in (txt.find("{"), txt.find("[")) if i >= 0] or [0])
-    return json.loads(txt[start:])
+    body = txt[start:]
+    try:
+        return json.loads(body, strict=False)          # tolera saltos de línea/tabs dentro de textos
+    except json.JSONDecodeError:
+        end = max(body.rfind("}"), body.rfind("]"))
+        return json.loads(body[:end + 1], strict=False)
 
 
 def _openai_compat(name: str, env: str, base: str, model: str, system: str, user: str, schema: Type[T]) -> T:
@@ -50,7 +62,9 @@ def _openai_compat(name: str, env: str, base: str, model: str, system: str, user
         r = httpx.post(f"{base}/chat/completions", headers=headers, json=body, timeout=120)
     if r.status_code >= 400:
         raise RuntimeError(f"{r.status_code} {r.text[:200]}")
-    content = r.json()["choices"][0]["message"]["content"]
+    msg = r.json()["choices"][0]["message"]
+    content = msg.get("content") or msg.get("reasoning_content") or ""
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.S)
     return schema.model_validate(_extract_json(content))
 
 
@@ -62,15 +76,51 @@ def _gemini(system: str, user: str, schema: Type[T], video_path: str | None) -> 
 def _cloudflare(system: str, user: str, schema: Type[T]) -> T:
     from . import cloudflare_post
     schema_txt = json.dumps(schema.model_json_schema(), ensure_ascii=False)
-    data = cloudflare_post("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {"max_tokens": 4000, "messages": [
+    data = cloudflare_post("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {"max_tokens": 6000, "messages": [
         {"role": "system", "content": f"{system}\nResponde solo JSON con este schema: {schema_txt}"},
         {"role": "user", "content": user}]})
     res = data["result"]["response"]
     return schema.model_validate(res if isinstance(res, dict) else _extract_json(res))
 
 
+def _cf_oss(system: str, user: str, schema: Type[T]) -> T:
+    """gpt-oss-120b en Workers AI por su endpoint compatible con OpenAI (prueba los dos tokens)."""
+    import os
+
+    from . import cloudflare_tokens
+    acc = key("CLOUDFLARE_ACCOUNT_ID")
+    last = None
+    for tok in cloudflare_tokens():
+        os.environ["_CF_TOKEN_IN_USE"] = tok
+        try:
+            return _openai_compat("cf-oss", "_CF_TOKEN_IN_USE", f"https://api.cloudflare.com/client/v4/accounts/{acc}/ai/v1",
+                                  "@cf/openai/gpt-oss-120b", system, user, schema)
+        except RuntimeError as e:
+            last = e
+            if not str(e).startswith(("401", "403")):
+                raise
+        finally:
+            os.environ.pop("_CF_TOKEN_IN_USE", None)
+    raise last or RuntimeError("sin token de Cloudflare")
+
+
 def ask(system: str, user: str, schema: Type[T], video_path: str | None = None) -> T:
-    """Prueba proveedores en orden. Video (gaming) solo lo entiende Gemini."""
+    """Prueba proveedores en orden; si todos están en pausa corta (límite por minuto), espera y reintenta."""
+    import time
+    names: list[str] = []
+    for attempt in range(4):
+        try:
+            return _ask_once(system, user, schema, video_path, names)
+        except ProvidersDown:
+            wait = health.wait_hint(names) if names else 0
+            if not names or wait > 150 or attempt == 3:
+                raise
+            log.info("todos los modelos en pausa por límite por minuto; espero %.0fs", wait)
+            time.sleep(wait + 1)
+    raise ProvidersDown("Ningún proveedor de texto respondió")
+
+
+def _ask_once(system: str, user: str, schema: Type[T], video_path: str | None, names: list[str]) -> T:
     tried: list[str] = []
     chain: list[tuple[str, callable]] = []
     if key("GEMINI_API_KEY"):
@@ -80,7 +130,9 @@ def ask(system: str, user: str, schema: Type[T], video_path: str | None = None) 
             if key(env):
                 chain.append((name, lambda n=name, e=env, b=base, m=model: _openai_compat(n, e, b, m, system, user, schema)))
         if key("CLOUDFLARE_ACCOUNT_ID") and key("CLOUDFLARE_API_TOKEN"):
+            chain.append(("cf-oss", lambda: _cf_oss(system, user, schema)))
             chain.append(("cloudflare", lambda: _cloudflare(system, user, schema)))
+    names[:] = [n for n, _ in chain]
 
     for name, fn in chain:
         if not health.ok(name):
@@ -95,4 +147,4 @@ def ask(system: str, user: str, schema: Type[T], video_path: str | None = None) 
         except Exception as e:
             health.failure(name, e, quota=is_quota_error(e))
             log.warning("texto: %s falló (%s); paso al siguiente", name, str(e)[:160])
-    raise RuntimeError(f"Ningún proveedor de texto respondió (probados: {tried or 'ninguno con llave'})")
+    raise ProvidersDown(f"Ningún proveedor de texto respondió (probados: {tried or 'todos en pausa por cuota'})")

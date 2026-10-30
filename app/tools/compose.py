@@ -179,7 +179,7 @@ def music_track(seconds: float, out: Path, mood: str = "calm") -> Path:
 
 
 def final_mix(video: Path, voice: Path, music: Path | None, ass: Path, out: Path, total: float,
-              music_vol: float = 0.12) -> Path:
+              music_vol: float = 0.12, preset: str = "veryfast") -> Path:
     fontsdir = str(FONT_PATH.parent)
     vf = f"[0:v]subtitles={ass}:fontsdir={fontsdir}[v]"
     if music:
@@ -189,6 +189,6 @@ def final_mix(video: Path, voice: Path, music: Path | None, ass: Path, out: Path
         args = ["-i", str(video), "-i", str(voice), "-i", str(music), "-filter_complex", fc]
     else:
         args = ["-i", str(video), "-i", str(voice), "-filter_complex", f"{vf};[1:a]apad[a]"]
-    _run([*args, "-map", "[v]", "-map", "[a]", "-t", f"{total:.2f}", "-c:v", "libx264", "-preset", "veryfast",
+    _run([*args, "-map", "[v]", "-map", "[a]", "-t", f"{total:.2f}", "-c:v", "libx264", "-preset", preset,
           "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(out)])
     return out

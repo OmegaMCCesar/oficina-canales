@@ -265,8 +265,33 @@ DRAW = {"ciclo_refrigeracion": _ciclo, "lavadora": _lavadora, "minisplit": _mini
         "termometro": _termometro, "lista": _lista, "titulo": _titulo}
 
 
+REAL_MAX = 8.0                                   # segundos dibujados cuadro por cuadro; el resto se repite
+LOOPING = {"ciclo_refrigeracion", "lavadora", "minisplit"}   # animaciones cíclicas: se repiten; las demás se congelan
+
+
 def render(template: str, params: dict, seconds: float, out: Path, w: int, h: int, lumi: str | None = None,
            fps: int = 24) -> Path:
+    """Escenas largas (videos de 8-10 min): dibuja solo los primeros REAL_MAX s y extiende sin redibujar."""
+    if seconds <= REAL_MAX + 0.5:
+        return _render(template, params, seconds, out, w, h, lumi, fps)
+    part = out.with_name(out.stem + "_a.mp4")
+    _render(template, params, REAL_MAX, part, w, h, lumi, fps)
+    try:
+        if template in LOOPING:
+            cmd = ["-stream_loop", "-1", "-i", str(part), "-t", f"{seconds:.2f}", "-c", "copy", str(out)]
+        else:
+            cmd = ["-i", str(part), "-vf", f"tpad=stop_mode=clone:stop_duration={seconds - REAL_MAX + 0.5:.2f}",
+                   "-t", f"{seconds:.2f}", "-c:v", "libx264", "-preset", "superfast", "-pix_fmt", "yuv420p", str(out)]
+        r = subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-threads", "1", *cmd], capture_output=True)
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.decode()[-300:])
+    finally:
+        part.unlink(missing_ok=True)
+    return out
+
+
+def _render(template: str, params: dict, seconds: float, out: Path, w: int, h: int, lumi: str | None = None,
+            fps: int = 24) -> Path:
     draw = DRAW.get(template, _titulo)
     s = int(min(w, h) * 0.075)
     base = _bg(w, h)
