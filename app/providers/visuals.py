@@ -107,12 +107,9 @@ def _pixabay_photo(query: str, portrait: bool, used: set) -> str | None:
 
 
 def _cloudflare_flux(prompt: str, out: Path) -> Path:
-    acc, tok = key("CLOUDFLARE_ACCOUNT_ID"), key("CLOUDFLARE_API_TOKEN")
-    r = httpx.post(f"https://api.cloudflare.com/client/v4/accounts/{acc}/ai/run/@cf/black-forest-labs/flux-1-schnell",
-                   headers={"Authorization": f"Bearer {tok}"}, json={"prompt": prompt[:2000], "steps": 6}, timeout=120)
-    if r.status_code >= 400:
-        raise RuntimeError(f"{r.status_code} {r.text[:200]}")
-    out.write_bytes(base64.b64decode(r.json()["result"]["image"]))
+    from . import cloudflare_post
+    data = cloudflare_post("@cf/black-forest-labs/flux-1-schnell", {"prompt": prompt[:2000], "steps": 6})
+    out.write_bytes(base64.b64decode(data["result"]["image"]))
     return out
 
 

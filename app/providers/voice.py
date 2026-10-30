@@ -43,12 +43,8 @@ def _edge(text: str, out: Path, voice: str, rate: str) -> list[tuple[float, floa
 
 
 def _cloudflare_melo(text: str, out: Path) -> None:
-    acc, tok = key("CLOUDFLARE_ACCOUNT_ID"), key("CLOUDFLARE_API_TOKEN")
-    r = httpx.post(f"https://api.cloudflare.com/client/v4/accounts/{acc}/ai/run/@cf/myshell-ai/melotts",
-                   headers={"Authorization": f"Bearer {tok}"}, json={"prompt": text, "lang": "es"}, timeout=120)
-    if r.status_code >= 400:
-        raise RuntimeError(f"{r.status_code} {r.text[:200]}")
-    audio = r.json()["result"]["audio"]
+    from . import cloudflare_post
+    audio = cloudflare_post("@cf/myshell-ai/melotts", {"prompt": text, "lang": "es"})["result"]["audio"]
     wav = out.with_suffix(".melo.wav")
     wav.write_bytes(base64.b64decode(audio))
     from ..tools.ffmpeg import FFMPEG

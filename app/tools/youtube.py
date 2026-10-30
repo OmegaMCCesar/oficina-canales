@@ -37,7 +37,7 @@ def _creds(channel_id: str):
 
     stored = get_secret(channel_id, "youtube")
     if stored:
-        creds = Credentials.from_authorized_user_info(stored, SCOPES)
+        creds = Credentials.from_authorized_user_info(stored, stored.get("scopes") or SCOPES)
     else:
         p = token_path(channel_id)
         if not p.exists():
@@ -155,15 +155,18 @@ def upload_video(channel_id: str, video_path: str, title: str, description: str,
     return vid
 
 
-def post_comment(channel_id: str, video_id: str, text: str) -> None:
-    """Comentario del propio canal en su video (fíjalo a mano en Studio: la API no permite fijar)."""
+def post_comment(channel_id: str, video_id: str, text: str) -> bool:
+    """Comentario del propio canal en su video (fíjalo a mano en Studio: la API no permite fijar).
+    Solo funciona cuando el video ya es público; devuelve True si se publicó."""
     if settings().MODE == "dry":
-        return
+        return True
     try:
         data_api(channel_id).commentThreads().insert(part="snippet", body={"snippet": {
             "videoId": video_id, "topLevelComment": {"snippet": {"textOriginal": text[:900]}}}}).execute()
-    except Exception as e:  # video privado o sin permiso force-ssl: no es crítico
-        log.info("comentario no publicado (%s)", str(e)[:120])
+        return True
+    except Exception as e:  # video aún privado o sin permiso force-ssl: se reintenta en el siguiente ciclo
+        log.info("comentario pendiente (%s)", str(e)[:120])
+        return False
 
 
 # ---------------- Leer ----------------

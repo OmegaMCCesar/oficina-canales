@@ -16,6 +16,13 @@ log = logging.getLogger("publisher")
 
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     assert job.script and job.video_path and job.scheduled_for
+    from pathlib import Path
+    if not Path(job.video_path).exists():
+        job.status = "scripted"          # el disco de Render se borró: se vuelve a producir
+        job.scheduled_for = None
+        job.thumbnail_paths, job.thumbnail_chosen = [], None
+        log.warning("[%s] video perdido por reinicio; vuelve a producción: %s", cfg.id, job.script.title)
+        return save_job(job)
     is_short = job.idea.format == "short"
     from .seo import build_description
     desc = build_description(job)
@@ -28,8 +35,6 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         )
         job.youtube_video_id = vid
         job.status = "scheduled"
-        if job.script.pinned_comment:
-            youtube.post_comment(cfg.id, vid, job.script.pinned_comment)
         log.info("[%s] programado %s -> %s @ %s", cfg.id, job.script.title, vid, job.scheduled_for)
     except Exception as e:
         job.status = "failed"

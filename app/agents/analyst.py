@@ -56,6 +56,10 @@ def _collect(cfg: ChannelConfig) -> int:
     for job in jobs(cfg.id, "published"):
         if not job.youtube_video_id or not job.published_at:
             continue
+        if job.script and job.script.pinned_comment and not job.comment_posted:
+            if youtube.post_comment(cfg.id, job.youtube_video_id, job.script.pinned_comment):
+                job.comment_posted = True
+                save_job(job)
         age = now - job.published_at
         existing = {m.window for m in stored_metrics(cfg.id) if m.youtube_video_id == job.youtube_video_id}
         for window, delta in (("24h", timedelta(hours=24)), ("7d", timedelta(days=7)), ("30d", timedelta(days=30))):

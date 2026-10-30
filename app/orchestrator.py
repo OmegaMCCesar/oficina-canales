@@ -165,6 +165,8 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
             job = publisher.run(cfg, job)
             if job.status == "scheduled":
                 act(cfg.id, "publicador", "Subido a YouTube Studio (privado)", to="portal", kind="ok")
+            elif job.status == "scripted":
+                act(cfg.id, "publicador", "El archivo se perdió en un reinicio; vuelve a producción", to="productor", kind="ask")
             else:
                 act(cfg.id, "publicador", f"No se pudo subir: {(job.error or '')[:80]}", kind="bad")
             if job.status == "scheduled":

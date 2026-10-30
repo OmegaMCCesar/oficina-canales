@@ -36,6 +36,27 @@ def key(name: str) -> str:
     return v
 
 
+def cloudflare_tokens() -> list[str]:
+    """Token principal y alterno: si uno no tiene permiso de Workers AI, se prueba el otro."""
+    return [t for t in (key("CLOUDFLARE_API_TOKEN"), key("CLOUDFLARE_API_TOKEN_ALT")) if t]
+
+
+def cloudflare_post(model: str, payload: dict, timeout: int = 120):
+    import httpx
+    acc = key("CLOUDFLARE_ACCOUNT_ID")
+    last = None
+    for tok in cloudflare_tokens():
+        r = httpx.post(f"https://api.cloudflare.com/client/v4/accounts/{acc}/ai/run/{model}",
+                       headers={"Authorization": f"Bearer {tok}"}, json=payload, timeout=timeout)
+        if r.status_code in (401, 403):
+            last = RuntimeError(f"{r.status_code} {r.text[:160]}")
+            continue
+        if r.status_code >= 400:
+            raise RuntimeError(f"{r.status_code} {r.text[:200]}")
+        return r.json()
+    raise last or RuntimeError("sin token de Cloudflare")
+
+
 def cloudflare_account_id() -> str:
     """Si solo hay token, pregunta a Cloudflare a qué cuenta pertenece (y lo recuerda)."""
     if "cf_acc" in _cache:

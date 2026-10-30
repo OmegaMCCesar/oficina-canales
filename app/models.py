@@ -82,6 +82,7 @@ class VideoJob(BaseModel):
     scheduled_for: Optional[datetime] = None
     published_at: Optional[datetime] = None
     error: Optional[str] = None
+    comment_posted: bool = False
     director_notes: str = ""
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)

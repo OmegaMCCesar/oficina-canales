@@ -60,15 +60,12 @@ def _gemini(system: str, user: str, schema: Type[T], video_path: str | None) -> 
 
 
 def _cloudflare(system: str, user: str, schema: Type[T]) -> T:
-    acc, tok = key("CLOUDFLARE_ACCOUNT_ID"), key("CLOUDFLARE_API_TOKEN")
+    from . import cloudflare_post
     schema_txt = json.dumps(schema.model_json_schema(), ensure_ascii=False)
-    r = httpx.post(f"https://api.cloudflare.com/client/v4/accounts/{acc}/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-                   headers={"Authorization": f"Bearer {tok}"}, timeout=120,
-                   json={"messages": [{"role": "system", "content": f"{system}\nResponde solo JSON con este schema: {schema_txt}"},
-                                      {"role": "user", "content": user}], "max_tokens": 4000})
-    if r.status_code >= 400:
-        raise RuntimeError(f"{r.status_code} {r.text[:200]}")
-    res = r.json()["result"]["response"]
+    data = cloudflare_post("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {"max_tokens": 4000, "messages": [
+        {"role": "system", "content": f"{system}\nResponde solo JSON con este schema: {schema_txt}"},
+        {"role": "user", "content": user}]})
+    res = data["result"]["response"]
     return schema.model_validate(res if isinstance(res, dict) else _extract_json(res))
 
 
