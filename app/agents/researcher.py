@@ -47,7 +47,8 @@ def _gaming_inbox_files(cfg: ChannelConfig) -> list[str]:
     if not inbox.exists():
         return []
     used = {j.idea.source_media for j in jobs(cfg.id) if j.idea.source_media}
-    return [str(p) for p in sorted(inbox.glob("*.mp4")) if str(p) not in used]
+    files = [p for p in sorted(inbox.iterdir()) if p.suffix.lower() in (".mp4", ".mov", ".mkv", ".webm", ".3gp")]
+    return [str(p) for p in files if str(p) not in used]
 
 
 def run(cfg: ChannelConfig) -> list[Idea]:

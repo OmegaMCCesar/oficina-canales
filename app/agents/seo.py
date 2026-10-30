@@ -41,7 +41,9 @@ SYSTEM = """Eres el ESTRATEGA SEO de un canal de YouTube en español de México.
   NO inventes links. Termina con los hashtags.
 - tags: 12-20, mezcla marcas, modelos genéricos, síntomas y sinónimos regionales (refri/refrigerador/nevera).
 - Shorts: incluye #Shorts entre los hashtags.
-- pinned_comment: corto, invita a responder y anuncia el siguiente video del tema."""
+- pinned_comment: corto, invita a responder y anuncia el siguiente video del tema.
+- HONESTIDAD: nunca pongas en título, descripción o etiquetas resultados, cifras, rangos o logros que NO estén en
+  la narración (p. ej. "15 kills", "en Mítico", "100% funciona"). Si no está en el guion, no existe."""
 
 
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:

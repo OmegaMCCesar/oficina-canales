@@ -59,7 +59,7 @@ def is_authorized(channel_id: str) -> bool:
 
 # ---------------- OAuth web (Render) ----------------
 
-def _web_flow(state: str | None = None):
+def _web_flow(state: str | None = None, scopes: list[str] | None = None):
     from google_auth_oauthlib.flow import Flow
     s = settings()
     cfg = {"web": {
@@ -69,7 +69,7 @@ def _web_flow(state: str | None = None):
         "redirect_uris": [s.PUBLIC_URL.rstrip("/") + "/oauth/callback"],
     }}
     # Cliente web con secreto: sin PKCE (el verificador no sobreviviría entre /oauth/start y /oauth/callback)
-    flow = Flow.from_client_config(cfg, scopes=SCOPES, state=state, autogenerate_code_verifier=False)
+    flow = Flow.from_client_config(cfg, scopes=scopes or SCOPES, state=state, autogenerate_code_verifier=False)
     flow.redirect_uri = s.PUBLIC_URL.rstrip("/") + "/oauth/callback"
     return flow
 

@@ -24,7 +24,7 @@ from ..db import save_job, store
 from ..llm import ask_json
 from ..models import VideoJob
 from ..tools import anim, doodle
-from .base import channel_brief
+from .base import channel_brief, lessons_block
 
 log = logging.getLogger("animator")
 
@@ -183,6 +183,7 @@ TÍTULO: {sc.title}
 EQUIPO PROBABLE: {appliance}
 GUION (escena: frase):
 {chr(10).join(f"{i+1}. {s['text']}" for i, s in enumerate(sc.scenes))}
+{lessons_block(cfg.id)}
 {('NOTAS DEL DIRECTOR A CORREGIR: ' + director_notes) if director_notes else ''}
 {('NOTAS DE CÉSAR (prioridad máxima): ' + cesar_notes) if cesar_notes else ''}"""
     p = ask_json(SYSTEM, user, AnimPlan, fallback=_fallback(job, appliance))

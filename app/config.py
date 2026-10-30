@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     API_TOKEN: str = "dev"
     GAMING_INBOX: str = "./media/gaming/inbox"
     AMAZON_ASSOCIATE_TAG: str = ""          # Amazon Afiliados México (p. ej. lcmc-20)
+    GAMING_DRIVE_FOLDER: str = "LCMC Games partidas"   # carpeta de Drive donde César sube sus grabaciones
 
 
 @lru_cache

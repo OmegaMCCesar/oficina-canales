@@ -132,59 +132,96 @@ def _fetch(url: str, folder: Path) -> Path | None:
     return out
 
 
-def _framed(src: Path, out: Path, w: int, h: int, label: str = "") -> Path:
-    """Imagen completa (sin cortar al personaje) sobre su propia versión desenfocada; opcional etiqueta abajo."""
+def _big_text(d, W, H, text, y, fs, color=(183, 242, 26)):
+    f = ffmpeg.font(fs)
+    for i, line in enumerate(ffmpeg.wrap_lines(d, text.upper(), f, int(W * 0.86))[:2]):
+        d.text((W / 2, y + i * fs * 1.15), line, font=f, fill=color, anchor="mt", stroke_width=max(4, fs // 10), stroke_fill="black")
+
+
+def _framed(src: Path, out: Path, w: int, h: int, label: str = "", big: str = "") -> Path:
+    """Arte oficial: en horizontal llena toda la pantalla (sin bordes); en vertical, grande sobre su versión
+    desenfocada. Opcional: texto GRANDE arriba."""
     from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
     ph = Image.open(src).convert("RGB")
-    W, H = int(w * 1.15), int(h * 1.15)
+    W, H = int(w * 1.15), int(h * 1.15)          # image_clip hace zoom/paneo sobre este lienzo
     sc = max(W / ph.width, H / ph.height)
-    bg = ph.resize((int(ph.width * sc) + 1, int(ph.height * sc) + 1))
-    bg = bg.crop(((bg.width - W) // 2, (bg.height - H) // 2, (bg.width - W) // 2 + W, (bg.height - H) // 2 + H))
-    bg = ImageEnhance.Brightness(bg.filter(ImageFilter.GaussianBlur(26))).enhance(0.5)
-    fg = ph.copy()
-    landscape_fill = w > h and ph.width >= ph.height
-    fg.thumbnail((int(w * (1.0 if landscape_fill else 0.9)), int(h * (0.86 if landscape_fill else 0.62))))
-    x, y = (W - fg.width) // 2, (H - fg.height) // 2 - (int(h * 0.04) if h > w else 0)
-    bg.paste(fg, (x, y))
+    cover = ph.resize((int(ph.width * sc) + 1, int(ph.height * sc) + 1), Image.LANCZOS)
+    top = int((cover.height - H) * 0.3)          # recorte cargado hacia arriba: no cortar caras
+    cover = cover.crop(((cover.width - W) // 2, top, (cover.width - W) // 2 + W, top + H))
+    if w > h:
+        bg = cover
+        # degradado oscuro abajo para que los subtítulos se lean sobre el arte
+        grad = Image.new("L", (1, H))
+        for y in range(H):
+            grad.putpixel((0, y), int(170 * max(0, (y / H - 0.62) / 0.38)))
+        bg.paste(Image.new("RGB", (W, H), (0, 0, 0)), (0, 0), grad.resize((W, H)))
+        fy = int(H * 0.08)
+    else:
+        bg = ImageEnhance.Brightness(cover.filter(ImageFilter.GaussianBlur(24))).enhance(0.5)
+        fg = ph.copy()
+        fg.thumbnail((int(W * 0.98), int(H * 0.62)), Image.LANCZOS)
+        x, y = (W - fg.width) // 2, int(H * 0.2)
+        bg.paste(fg, (x, y))
+        fy = int(H * 0.09)
+    d = ImageDraw.Draw(bg)
+    if big:
+        _big_text(d, W, H, big, fy, int(min(W, H) * 0.1))
     if label:
-        d = ImageDraw.Draw(bg)
         fs = max(26, min(w, h) // 16)
         f = ffmpeg.font(fs)
         tw = d.textlength(label, font=f)
-        lx, ly = (W - tw) / 2, y + fg.height + fs * 0.6
+        lx, ly = (W - tw) / 2, H * 0.72
         d.rounded_rectangle([lx - fs * 0.6, ly - fs * 0.3, lx + tw + fs * 0.6, ly + fs * 1.4], radius=fs // 2, fill=(139, 124, 246))
         d.text((lx, ly), label, font=f, fill="white")
-    bg.save(out, quality=90)
+    bg.save(out, quality=92)
     return out
 
 
-def _icon_card(src: Path, out: Path, w: int, h: int, name: str) -> Path:
-    """Tarjeta de habilidad: ícono oficial grande al centro + nombre."""
-    from PIL import Image, ImageDraw
+def _icon_card(src: Path, out: Path, w: int, h: int, name: str, detail: str = "", bg_src: Path | None = None) -> Path:
+    """Tarjeta de habilidad: ícono oficial grande + nombre + qué hace, sobre el arte del héroe desenfocado."""
+    from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
     W, H = int(w * 1.15), int(h * 1.15)
-    bg = Image.new("RGB", (W, H))
+    if bg_src and bg_src.exists():
+        ph = Image.open(bg_src).convert("RGB")
+        sc = max(W / ph.width, H / ph.height)
+        bg = ph.resize((int(ph.width * sc) + 1, int(ph.height * sc) + 1)).crop((0, 0, W, H))
+        bg = ImageEnhance.Brightness(bg.filter(ImageFilter.GaussianBlur(20))).enhance(0.35)
+    else:
+        bg = Image.new("RGB", (W, H))
+        dd = ImageDraw.Draw(bg)
+        for yy in range(H):
+            t = yy / H
+            dd.line([(0, yy), (W, yy)], fill=(int(16 + 36 * t), int(12 + 24 * t), int(40 + 70 * t)))
     d = ImageDraw.Draw(bg)
-    top, bot = (16, 12, 40), (52, 36, 110)
-    for yy in range(H):
-        t = yy / H
-        d.line([(0, yy), (W, yy)], fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
     ic = Image.open(src).convert("RGBA")
-    size = int(min(W, H) * 0.42)
-    ic = ic.resize((size, size), Image.LANCZOS)
     landscape = W > H
-    cx, cy = (int(W * 0.33), int(H * 0.44)) if landscape else (W // 2, int(H * 0.38))
-    d.ellipse([cx - size * 0.62, cy - size * 0.62, cx + size * 0.62, cy + size * 0.62], fill=(139, 124, 246))
+    size = int(min(W, H) * (0.42 if landscape else 0.36))
+    ic = ic.resize((size, size), Image.LANCZOS)
+    cx, cy = (int(W * 0.3), int(H * 0.44)) if landscape else (W // 2, int(H * 0.33))
+    d.ellipse([cx - size * 0.62, cy - size * 0.62, cx + size * 0.62, cy + size * 0.62], fill=(139, 124, 246), outline="black", width=6)
     bg.paste(ic, (cx - size // 2, cy - size // 2), ic)
-    fs = max(30, min(W, H) // 13)
-    f = ffmpeg.font(fs)
-    lines = ffmpeg.wrap_lines(d, name.upper(), f, int(W * (0.38 if landscape else 0.8)))[:3]
-    for i, line in enumerate(lines):
-        if landscape:   # nombre a la derecha del ícono, lejos de los subtítulos
-            d.text((int(W * 0.56), cy - (len(lines) * fs * 1.2) / 2 + i * fs * 1.2), line, font=f, fill=(255, 255, 255),
-                   anchor="lt", stroke_width=4, stroke_fill="black")
-        else:
-            d.text((cx, cy + size * 0.8 + i * fs * 1.2), line, font=f, fill=(255, 255, 255), anchor="mt", stroke_width=4, stroke_fill="black")
-    bg.save(out, quality=90)
+    fs = max(30, min(W, H) // 12)
+    f, f2 = ffmpeg.font(fs), ffmpeg.font(int(fs * 0.62))
+    if landscape:
+        x0, wrap = int(W * 0.53), int(W * 0.42)
+        lines = ffmpeg.wrap_lines(d, name.upper(), f, wrap)[:2]
+        dl = ffmpeg.wrap_lines(d, detail, f2, wrap)[:4] if detail else []
+        y = cy - (len(lines) * fs * 1.15 + len(dl) * fs * 0.8) / 2
+        for line in lines:
+            d.text((x0, y), line, font=f, fill=(183, 242, 26), anchor="lt", stroke_width=4, stroke_fill="black")
+            y += fs * 1.15
+        for line in dl:
+            d.text((x0, y + fs * 0.15), line, font=f2, fill="white", anchor="lt", stroke_width=3, stroke_fill="black")
+            y += fs * 0.8
+    else:
+        y = cy + size * 0.8
+        for line in ffmpeg.wrap_lines(d, name.upper(), f, int(W * 0.84))[:2]:
+            d.text((cx, y), line, font=f, fill=(183, 242, 26), anchor="mt", stroke_width=4, stroke_fill="black")
+            y += fs * 1.15
+        for line in (ffmpeg.wrap_lines(d, detail, f2, int(W * 0.84))[:3] if detail else []):
+            d.text((cx, y + fs * 0.2), line, font=f2, fill="white", anchor="mt", stroke_width=3, stroke_fill="black")
+            y += fs * 0.8
+    bg.save(out, quality=92)
     return out
 
 
@@ -248,8 +285,16 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
             try:
                 src = _fetch(scn["img_url"], folder)
                 if src:
-                    img = (_icon_card(src, folder / f"icon_{k:02}.jpg", w, h, scn.get("on_screen") or "")
-                           if visual == "icon" else _framed(src, folder / f"web_{k:02}.jpg", w, h))
+                    if visual == "icon":
+                        bgp = None
+                        if scn.get("bg_url"):
+                            try:
+                                bgp = _fetch(scn["bg_url"], folder)
+                            except Exception:
+                                bgp = None
+                        img = _icon_card(src, folder / f"icon_{k:02}.jpg", w, h, scn.get("on_screen") or "", scn.get("detail", ""), bgp)
+                    else:
+                        img = _framed(src, folder / f"web_{k:02}.jpg", w, h, big=scn.get("big", ""))
                     compose.image_clip(img, secs, clip, w, h, k)
                     made = True
             except Exception as e:
@@ -343,7 +388,8 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     except Exception as e:
         log.warning("sin música (%s)", e)
     out = compose.final_mix(silent, voice, music, ass, folder / "final.mp4", total,
-                            preset="veryfast" if portrait else "superfast")
+                            preset="veryfast" if portrait else "superfast",
+                            size=(1080, 1920) if portrait else (1920, 1080))
 
     for pat in ("web_*", "icon_*"):
         for f in folder.glob(pat):

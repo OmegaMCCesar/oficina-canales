@@ -218,6 +218,7 @@ const ROLES = {
   calidad:      {name:"Calidad",      color:0xe9ecef, desc:"Guardián de calidad y originalidad: revisa datos técnicos, advertencias de seguridad y que el título cumpla lo que promete. Compara con los últimos 20 videos y bloquea los repetidos (YouTube no paga contenido hecho en serie)."},
   humano:       {name:"Toque humano", color:0xffb703, desc:"Bandeja de César: te pide fotos de casos reales y notas de voz cortas, y las mete en los videos (foto 'Caso real' y tu voz después del gancho). Es lo que hace al canal imposible de copiar."},
   monetizacion: {name:"Monetización", color:0x2dc653, desc:"Mete links de afiliado de las herramientas y refacciones de cada video (con aviso), manda a tu sitio y mide el avance: suscriptores, horas de videos largos y vistas de Shorts hacia los niveles para monetizar."},
+  critico:      {name:"Crítico",      color:0xff5d8f, desc:"Crítico de video: VE cada video ya renderizado (9 cuadros a lo largo del video) con un modelo de IA con visión, lo califica, deja lecciones en la memoria para que el Animador y el Guionista mejoren en el siguiente, y si sale muy mal pide rehacerlo."},
   seo:          {name:"SEO",          color:0x2ec4b6, desc:"Estratega SEO: título con la búsqueda real al inicio, títulos alternos para probar, descripción, etiquetas, hashtags, capítulos y comentario fijado."},
 };
 // posiciones locales de escritorio (x,z) y hacia dónde mira el robot al trabajar
@@ -226,6 +227,7 @@ const DESKS = {
   guionista:    [-3.6,4.2],  productor:[0.2,4.6], miniaturas:[4.0,4.2], publicador:[6.8,0.4],
   retencion:    [-3.6,-1.6], seo:[3.6,-1.6], animador:[0,0.9],
   empaque:      [-2.9,-4.4], showrunner:[2.9,-4.4], calidad:[6.7,-2.4], humano:[-6.7,-2.4], monetizacion:[6.7,3.1],
+  critico:      [0,-1.75],
 };
 const ROOMS = [
   {id:"lcmc",   name:"LCMC · Servir para Servir", ox:-9.4, tint:0xf2a65a, floor:0x4a3f52, rug:0x4a3326,
@@ -251,6 +253,7 @@ const CREW = {
     calidad:      {nick:"Inspector Tuerca", vibe:"Desconfiado por profesión. Revisa cada dato técnico dos veces y odia los videos clonados.", quotes:["¿Eso lo firmaría un técnico?","Falta la advertencia de seguridad.","Este se parece demasiado a otro."], hobbies:["ajedrez","lectura","yoga"]},
     humano:       {nick:"Paco Real",       vibe:"El puente con César: junta casos reales, fotos y notas de voz para que el canal tenga alma.", quotes:["Lo real no se copia.","César, ¿me mandas una foto?","Tu voz vale más que cualquier IA."], hobbies:["guitarra","plantas","pingpong"]},
     monetizacion: {nick:"Doña Lana",       vibe:"Contadora alegre: ve una herramienta mencionada y ya está pensando en el link.", quotes:["Cada link cuenta.","Vamos por los 500 suscriptores.","Horas de largos: ¡a sumar!"], hobbies:["yoga","lectura","plantas"]},
+    critico:      {nick:"Doña Mirada",     vibe:"Exigente pero justa: ve cada video antes que nadie y no deja pasar una pantalla aburrida.", quotes:["Cuadro 4: aquí no se entiende nada.","Esto ya se ve publicable.","Anotado: nunca más tarjetas vacías."], hobbies:["lectura","pintura","ajedrez"]},
     publicador:   {nick:"Don Reloj",   vibe:"Puntual y metódico. No sube nada sin revisarlo dos veces.", quotes:["Tic-tac: todo a su hora.","Subido como privado, como debe ser.","Nunca en ráfaga."], hobbies:["plantas","yoga","siesta"]},
   },
   gaming: {
@@ -268,6 +271,7 @@ const CREW = {
     calidad:      {nick:"Árbitro",  vibe:"Estricto con los datos del juego y con los clips repetidos.", quotes:["Ese build está desactualizado.","Clip repetido: tarjeta amarilla.","Revisión VAR del título."], hobbies:["ajedrez","yoga","arcade"]},
     humano:       {nick:"Replay",   vibe:"Le pide a César sus mejores partidas y reacciones reales.", quotes:["César, ¿grabaste algo hoy?","Tu reacción real vale oro.","Sin partidas no hay video."], hobbies:["guitarra","arcade","siesta"]},
     monetizacion: {nick:"Loot",     vibe:"Cuenta el botín: suscriptores, horas y diamantes.", quotes:["Vamos por los 500.","Cada hora cuenta.","Loot asegurado."], hobbies:["arcade","yoga","plantas"]},
+    critico:      {nick:"Spectator", vibe:"Ve todo en modo espectador y califica como caster.", quotes:["Replay del cuadro 3: flojo.","Ese arte sí luce.","GG, se publica."], hobbies:["arcade","ajedrez","lectura"]},
     publicador:   {nick:"Respawn",     vibe:"Calmado. Si algo falla, siempre vuelve a intentarlo.", quotes:["Subido. Respawn en 24 h.","Sin ráfagas, como manda el Comandante.","Programado y listo."], hobbies:["yoga","siesta","plantas"]},
   },
 };
@@ -1092,7 +1096,8 @@ function demoTick(dt){
             after: () => handoff(R,"director","calidad","Animación aprobada 8/10", {kind:"ok", ack:"Reviso todo",
               after: () => handoff(R,"calidad","productor","Calidad 9/10 · originalidad 84/100", {kind:"ok", ack:"A render"})})})});
         break;
-      case 3: handoff(R,"productor","miniaturas",`Video renderizado (${R.id==="gaming"?"3 highlights":"8 escenas"})`, {ack:"Hago 2"}); break;
+      case 3: handoff(R,"productor","critico",`Video renderizado (${R.id==="gaming"?"3 highlights":"8 escenas"})`, {ack:"Lo veo",
+        after: () => handoff(R,"critico","miniaturas", R.id==="gaming" ? "8/10: el arte luce, publicable" : "7/10 · lección: menos texto en pantalla", {kind:"ok", ack:"Hago 2"})}); break;
       case 4: handoff(R,"miniaturas","director","2 miniaturas, recomiendo la A", {ack:"Elijo la A"}); break;
       case 5: {
         const h = R.id === "gaming" ? "21:00" : "20:00";
@@ -1410,6 +1415,24 @@ async function renderOffice(R, box, base){
         } catch(e){ m.style.color = "var(--bad)"; m.textContent = e.message; }
       };
       const row = el("div","row"); row.append(inp, b); c.append(row, m); d3.append(c);
+    }
+  }
+  // 3b) partidas desde el cel (gaming)
+  if (o.drive){
+    const dd = sec(`📱 Partidas desde tu cel · ${o.drive.connected ? "Drive conectado" : "sin conectar"}`, !o.drive.connected);
+    dd.append(el("small", null, `1) En tu Drive crea la carpeta «${o.drive.folder}». 2) Al terminar de jugar, abre la app de Google Drive → Subir → tu grabación. 3) En el siguiente ciclo la oficina la descarga, encuentra los mejores momentos y arma los videos.`));
+    if (o.drive.connected) dd.append(el("small", null, "Conectado con " + (o.drive.email || "tu cuenta") + " (solo lectura)."));
+    const a = el("a", "btn", o.drive.connected ? "Volver a conectar Drive" : "Conectar Google Drive");
+    a.href = `${base}/oauth/drive?t=${encodeURIComponent(api.token)}`; a.target = "_blank"; a.rel = "noopener";
+    const row = el("div","row"); row.append(a); dd.append(row);
+  }
+  // 3c) lo que dijo el Crítico
+  if (o.reviews && o.reviews.length){
+    const dr = sec("👁️ El Crítico vio estos videos");
+    for (const r of o.reviews){
+      const c = el("div","req"); c.append(el("b", null, `${r.title} · ${r.score}/10`), el("small", null, r.summary || ""));
+      for (const f of (r.fixes||[]).slice(0,3)) c.append(el("small", null, "• " + f));
+      dr.append(c);
     }
   }
   // 4) series

@@ -123,12 +123,14 @@ def ask(system: str, user: str, schema: Type[T], video_path: str | None = None) 
 def _ask_once(system: str, user: str, schema: Type[T], video_path: str | None, names: list[str]) -> T:
     tried: list[str] = []
     chain: list[tuple[str, callable]] = []
-    if key("GEMINI_API_KEY"):
-        chain.append(("gemini", lambda: _gemini(system, user, schema, video_path)))
+    if video_path and key("GEMINI_API_KEY"):
+        chain.append(("gemini", lambda: _gemini(system, user, schema, video_path)))   # solo Gemini ve video
     if not video_path:
         for name, env, base, model in OPENAI_COMPAT:
             if key(env):
                 chain.append((name, lambda n=name, e=env, b=base, m=model: _openai_compat(n, e, b, m, system, user, schema)))
+        if key("GEMINI_API_KEY"):   # Gemini después de los gratuitos: su cuota se guarda para ver videos
+            chain.append(("gemini", lambda: _gemini(system, user, schema, None)))
         if key("CLOUDFLARE_ACCOUNT_ID") and key("CLOUDFLARE_API_TOKEN"):
             chain.append(("cf-oss", lambda: _cf_oss(system, user, schema)))
             chain.append(("cloudflare", lambda: _cloudflare(system, user, schema)))

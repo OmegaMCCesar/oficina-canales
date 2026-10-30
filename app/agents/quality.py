@@ -137,8 +137,19 @@ GUION:
             applied.append(f"Escena {f.scene} corregida")
     if sc.scenes:
         sc.body = " ".join(s["text"] for s in sc.scenes)
+    import re as _re
+    body_l = sc.body.lower()
+    claims = [n for n in _re.findall(r"\d+[%k]?", sc.title.lower()) if n not in body_l] + \
+             [wd for wd in ("kills", "mítico", "mythic", "inmortal", "100%", "garantizado") if wd in sc.title.lower() and wd not in body_l]
+    if claims:
+        r.title_keeps_promise = False
+        issues.append(f"El título afirma cosas que el video no dice: {', '.join(claims)}")
     if not r.title_keeps_promise:
-        issues.append("El título promete algo que el guion no cumple del todo: revisar en Studio")
+        # el título promete algo que el video no tiene: se regresa al título honesto de la idea
+        old = sc.title
+        sc.title = (job.idea.title if job.idea.hero or job.idea.source == "showrunner" else
+                    (job.package.get("title") if job.package.get("title") and job.package.get("title") != old else job.idea.title))[:100]
+        applied.append(f"Título corregido (prometía de más): «{old[:50]}» → «{sc.title[:50]}»")
     if not orig["has_human"] and cfg.production.kind == "generated":
         issues.append("Sin material real de César: el video es más fácil de confundir con contenido genérico")
     job.qa = {"verdict": "ok" if not applied else "corregido", "score": r.score, "originality": orig["score"],

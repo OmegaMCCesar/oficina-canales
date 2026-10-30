@@ -124,7 +124,7 @@ class Insight(BaseModel):
     """Memoria del canal: lo que el Analista aprendió y el Director lee."""
     id: str = Field(default_factory=lambda: new_id("ins"))
     channel_id: str
-    kind: Literal["topic", "hook", "thumbnail", "timing", "format", "general"]
+    kind: Literal["topic", "hook", "thumbnail", "timing", "format", "general", "visual"]
     statement: str                  # "Temas de refrigerador que no enfría retienen 65%"
     evidence: str                   # ids / números
     confidence: float = 0.5

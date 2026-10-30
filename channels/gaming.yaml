@@ -46,7 +46,7 @@ director_rules: |
   - Material = partidas grabadas por César en media/gaming/inbox. Si no hay material nuevo, el Director pide partidas específicas (héroe/modo) en lugar de inventar.
   - Mientras tanto, aprueba los videos de héroes (historia, habilidades) que trae el Investigador con datos de la wiki: son la base del canal.
   - Un short por momento destacado; nunca dos shorts de la misma partida el mismo día.
-  - Títulos con el héroe y el resultado concreto ("Fanny 15 kills en Mítico"), sin clickbait falso.
+  - Partidas grabadas: título con el héroe y el resultado REAL de esa partida. Videos de héroes (wiki): título con el héroe y lo que aprende el espectador; nunca inventar kills, rangos ni resultados.
   - Seguir meta del parche: el Investigador reporta héroes en tendencia cada semana.
 
 series_seeds:

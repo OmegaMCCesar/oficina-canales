@@ -204,6 +204,15 @@ def oauth_start(channel_id: str, t: str = ""):
     return RedirectResponse(youtube.auth_url(state))
 
 
+@app.get("/oauth/drive", include_in_schema=False)
+def oauth_drive(t: str = ""):
+    """Conecta Google Drive (solo lectura) para la bandeja de partidas de LCMC Games."""
+    if not secrets.compare_digest(t, settings().API_TOKEN):
+        return _page("Token inválido", "<p>Abre esto desde Acciones en la oficina.</p>")
+    from .tools import gdrive
+    return RedirectResponse(gdrive.auth_url(f"drive.{_sign('drive')}"))
+
+
 @app.get("/oauth/callback", include_in_schema=False)
 def oauth_callback(request: Request, state: str = "", error: str = ""):
     if error:
@@ -211,6 +220,16 @@ def oauth_callback(request: Request, state: str = "", error: str = ""):
     channel_id, _, sig = state.partition(".")
     if not channel_id or not secrets.compare_digest(sig, _sign(channel_id)):
         return _page("Solicitud inválida", "<p>Vuelve a empezar desde la oficina.</p>")
+    if channel_id == "drive":
+        from .tools import gdrive
+        try:
+            info = gdrive.finish_auth(state, str(request.url))
+        except Exception as e:
+            logging.exception("oauth drive")
+            return _page("No se pudo conectar Drive", f"<p>{str(e)[:300]}</p>")
+        return _page("Google Drive conectado",
+                     f"<p>Listo: la oficina puede leer la carpeta <b>{settings().GAMING_DRIVE_FOLDER}</b> de "
+                     f"<b>{info.get('emailAddress', 'tu cuenta')}</b>. Sube ahí tus partidas desde el celular.</p>")
     from .tools import youtube
     try:
         info = youtube.finish_auth(channel_id, state, str(request.url))
@@ -256,6 +275,8 @@ def office(channel_id: str):
                     "episodes": [{"n": e["n"], "title": e["title"], "status": e["status"]} for e in s["episodes"]]}
                    for s in showrunner.series(channel_id)],
         "quality": q,
+        "drive": __import__("app.tools.gdrive", fromlist=["status"]).status() if channel_id == "gaming" else None,
+        "reviews": sorted(store().list(channel_id, "reviews"), key=lambda d: d.get("at", ""), reverse=True)[:3],
     }
 
 

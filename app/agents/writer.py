@@ -15,7 +15,7 @@ from ..config import ChannelConfig
 from ..db import save_job
 from ..llm import ask_json
 from ..models import Script, VideoJob
-from .base import channel_brief, insights_block
+from .base import channel_brief, insights_block, lessons_block
 from .hero_research import CREDIT
 from .packaging import brief
 
@@ -123,8 +123,9 @@ def _expand_if_short(cfg: ChannelConfig, out: "ScriptOut", target: int, user: st
 
 class HeroScene(BaseModel):
     text: str
-    media: str = ""         # "splash:N" (arte oficial N) | "icon:Nombre" (ícono de habilidad) | "" 
-    card: str = ""          # 1-4 palabras para tarjeta animada (nombre de habilidad, dato clave)
+    media: str = ""         # "splash:N" (arte oficial N) | "icon:Nombre" (ícono de habilidad) | ""
+    card: str = ""          # 1-4 palabras GRANDES en pantalla (nombre de habilidad, dato clave)
+    detail: str = ""        # en escenas de habilidad: qué hace, ≤ 12 palabras
     visual_prompt: str = ""
 
 
@@ -138,20 +139,55 @@ class HeroOut(BaseModel):
     tags: list[str]
 
 
+class HeroMore(BaseModel):
+    after_scene: int
+    scenes: list[HeroScene]
+
+
+class HeroExpand(BaseModel):
+    additions: list[HeroMore]
+
+
 SYSTEM_HERO = """Eres el GUIONISTA de un canal de Mobile Legends en español de México. Escribes un video sobre UN héroe
 usando SOLO los DATOS VERIFICADOS que te dan (vienen de la wiki en inglés: tradúcelos con naturalidad). No inventes
-números, builds, items, fechas ni datos que no estén en los datos. Si algo no está, no lo digas.
-Estructura del LARGO: gancho con lo más intrigante de su historia, quién es (historia/lore contado como relato),
-pasiva y cada habilidad (qué hace y para qué sirve en una pelea), cómo combinarlas, fortalezas y debilidades que se
-deduzcan de sus habilidades, y cierre preguntando a la audiencia. SHORT: un solo dato de su historia o su habilidad más
+números, builds, items, fechas, rangos, kills ni datos que no estén en los datos. Si algo no está, no lo digas.
+Estructura del LARGO (6-8 min): gancho con lo más intrigante de su historia; su historia contada como relato (con
+detalles del lore: lugares, personajes, conflictos); su rol; la pasiva y CADA habilidad explicada con calma (qué hace,
+para qué sirve en una pelea, a qué distancia, contra quién conviene); combos que se deducen de las habilidades;
+fortalezas y debilidades; cierre preguntando a la audiencia. SHORT: un solo dato de su historia o su habilidad más
 vistosa, contado con gancho, 40-55 segundos.
-Escenas de 1-2 frases. VISUALES (campo media), usando el ARTE OFICIAL disponible:
-- "splash:N" = arte oficial N del héroe: úsalo en ~40% de las escenas (sobre todo historia, gancho y cierre),
-  alternando N para no repetir la misma imagen seguida.
-- "icon:Nombre" = ícono de esa habilidad: úsalo justo cuando explicas esa habilidad (y pon card con su nombre).
-- Si no hay media que encaje, pon `card` (1-4 palabras: dato clave) y deja media vacío.
-- Solo si no hay arte oficial disponible, usa visual_prompt (ilustración genérica de fantasía, sin nombrar al héroe).
+Escenas de 1-2 frases. VISUALES con el ARTE OFICIAL disponible (el video debe verse rico, nunca vacío):
+- "splash:N" = arte oficial N: úsalo en la MAYORÍA de escenas (historia, gancho, combos, cierre), alternando N.
+  Si quieres un texto grande encima, ponlo en card (1-4 palabras).
+- "icon:Nombre" = ícono de esa habilidad: úsalo cuando explicas esa habilidad; card = nombre de la habilidad y
+  detail = qué hace en ≤ 12 palabras.
+- Nunca dejes una escena sin media si hay arte disponible.
 Tono: de jugador a jugador, energético, sin gritos."""
+
+
+def _hero_media_scene(idea, s: HeroScene, k: int, splash: list, icons: dict) -> dict:
+    sc = {"text": s.text, "visual_prompt": s.visual_prompt, "lumi": ""}
+    m = s.media.strip()
+    if m.startswith("icon") and icons:
+        want = m.split(":", 1)[-1].strip().lower()
+        url = icons.get(want) or next((u for nm, u in icons.items() if want and (want in nm or nm in want)), None)
+        if url:
+            sc.update({"visual": "icon", "img_url": url, "on_screen": s.card or m.split(":", 1)[-1].strip(),
+                       "detail": s.detail, "bg_url": splash[k % len(splash)] if splash else ""})
+            return sc
+    if splash:
+        try:
+            n = int(m.split(":")[1]) if m.startswith("splash") else k
+        except Exception:
+            n = k
+        sc.update({"visual": "web", "img_url": splash[n % len(splash)], "big": s.card.strip()})
+        return sc
+    if s.card.strip() or not s.visual_prompt.strip():
+        sc.update({"visual": "anim", "anim": "titulo", "on_screen": s.card,
+                   "anim_params_json": json.dumps({"texto": (s.card or idea.hero).upper()[:28], "sub": idea.hero}, ensure_ascii=False)})
+    else:
+        sc["visual"] = "image"
+    return sc
 
 
 def _hero_script(cfg: ChannelConfig, job: VideoJob) -> Script:
@@ -162,43 +198,40 @@ def _hero_script(cfg: ChannelConfig, job: VideoJob) -> Script:
 HÉROE: {idea.hero}
 IDEA: {idea.title} — {idea.angle}
 {brief(job)}
+{lessons_block(cfg.id)}
 FORMATO: {idea.format}. META: ~{target} palabras narradas.
 ARTE OFICIAL DISPONIBLE: {len(idea.media.get("splash", []))} splash (splash:0 a splash:{max(0, len(idea.media.get("splash", [])) - 1)}){"; íconos: " + ", ".join(i["name"] for i in idea.media.get("icons", [])) if idea.media.get("icons") else "; sin íconos"}
 DATOS VERIFICADOS:
 {idea.facts}"""
     fb = HeroOut(title=idea.title[:70], hook=f"¿Sabías esto de {idea.hero}?", hook_text=f"¿QUIÉN ES {idea.hero.upper()}?",
-                 scenes=[HeroScene(text=f"Dato {k+1} sobre {idea.hero}.", card=(f"HABILIDAD {k}" if k % 2 else ""),
+                 scenes=[HeroScene(text=f"Dato {k+1} sobre {idea.hero}.", media=f"splash:{k}", card=(f"HABILIDAD {k}" if k % 2 else ""),
                                    visual_prompt="Paisaje de fantasía épica al atardecer con un castillo")
                          for k in range(8 if idea.format == "short" else 20)],
                  cta="Comenta qué héroe quieres que cuente después", description=f"{idea.title}", tags=["mlbb", "mobile legends", idea.hero.lower()])
     out = ask_json(SYSTEM_HERO, user, HeroOut, fallback=fb)
-    scenes = []
+    # largos: si quedó corto, una o dos rondas para ampliar SOLO con los datos verificados
+    if idea.format == "long" and out is not fb:
+        for _ in range(2):
+            have = sum(len(x.text.split()) for x in out.scenes)
+            if have >= target * 0.8:
+                break
+            listing = "\n".join(f"{i+1}. {x.text}" for i, x in enumerate(out.scenes))
+            try:
+                ext = ask_json(SYSTEM_HERO + "\nAhora AMPLÍA el guion: agrega escenas nuevas (no repitas) con más detalle "
+                               "de la historia y de cada habilidad, usando solo los datos verificados.",
+                               f"{user}\nGUION ACTUAL ({have} palabras, faltan ~{target - have}):\n{listing}",
+                               HeroExpand, fallback=HeroExpand(additions=[]))
+            except Exception as e:
+                log.warning("[%s] no pude ampliar el guion del héroe (%s)", cfg.id, e)
+                break
+            if not ext.additions:
+                break
+            for add in sorted(ext.additions, key=lambda a: -a.after_scene):
+                kk = max(0, min(len(out.scenes), add.after_scene))
+                out.scenes[kk:kk] = add.scenes
     splash = idea.media.get("splash", [])
     icons = {i["name"].lower(): i["url"] for i in idea.media.get("icons", [])}
-    for k, s in enumerate(out.scenes):
-        sc = {"text": s.text, "visual_prompt": s.visual_prompt, "lumi": ""}
-        m = s.media.strip()
-        if m.startswith("splash") and splash:
-            try:
-                n = int(m.split(":")[1])
-            except Exception:
-                n = k
-            sc.update({"visual": "web", "img_url": splash[n % len(splash)], "on_screen": s.card})
-        elif m.startswith("icon") and icons:
-            want = m.split(":", 1)[-1].strip().lower()
-            url = icons.get(want) or next((u for nm, u in icons.items() if want and (want in nm or nm in want)), None)
-            if url:
-                sc.update({"visual": "icon", "img_url": url, "on_screen": s.card or m.split(":", 1)[-1].strip()})
-            else:
-                sc.update({"visual": "anim", "anim": "titulo", "anim_params_json": json.dumps({"texto": (s.card or want).upper()[:28], "sub": idea.hero}, ensure_ascii=False)})
-        elif splash and not s.card.strip() and k % 3 == 0:
-            sc.update({"visual": "web", "img_url": splash[k % len(splash)]})   # sin media pero hay arte: úsalo
-        elif s.card.strip() or not s.visual_prompt.strip():
-            sc.update({"visual": "anim", "anim": "titulo", "on_screen": s.card,
-                       "anim_params_json": json.dumps({"texto": (s.card or idea.hero).upper()[:28], "sub": idea.hero}, ensure_ascii=False)})
-        else:
-            sc["visual"] = "image"
-        scenes.append(sc)
+    scenes = [_hero_media_scene(idea, s, k, splash, icons) for k, s in enumerate(out.scenes)]
     desc = out.description.strip() + "\n\n" + CREDIT
     return Script(title=out.title, hook=out.hook, hook_text=out.hook_text, body=" ".join(s["text"] for s in scenes),
                   cta=out.cta, cta_end=out.cta, description=desc, tags=out.tags, scenes=scenes)

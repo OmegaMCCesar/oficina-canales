@@ -16,7 +16,7 @@ import logging
 import traceback
 
 from . import producers
-from .agents import (analyst, animator, director, hero_research, human_touch, monetization, packaging, quality, showrunner,)
+from .agents import (analyst, animator, critic, director, hero_research, human_touch, monetization, packaging, quality, showrunner,)
 from .agents import publisher, researcher, retention, seo, thumbnails, writer
 from .config import get_channel, load_channels
 from .db import add_activity as act, jobs, log_run, save_job, store
@@ -133,6 +133,8 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     _safe(showrunner.run, cfg)
 
     if cfg.production.kind == "gameplay":
+        from .tools import gdrive
+        _safe(gdrive.sync, cfg)
         act(cfg.id, "investigador", "Investigando un héroe en la wiki (historia y habilidades)…")
         _safe(hero_research.run, cfg)
     act(cfg.id, "investigador", "Buscando temas: comentarios, tendencias y memoria del canal…")
@@ -195,7 +197,11 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
                 act(cfg.id, "productor", f"Generando imágenes, voz y video: {title}")
                 job = _step(job, producers.run, cfg)
                 if job.status == "produced":
-                    act(cfg.id, "productor", "Video renderizado", to="miniaturas")
+                    act(cfg.id, "productor", "Video renderizado", to="critico")
+                    act(cfg.id, "critico", "Viendo el video cuadro por cuadro…")
+                    job = _safe(critic.run, cfg, job) or job
+                    if job.status == "produced":
+                        act(cfg.id, "critico", "Aprobado para miniatura", to="miniaturas")
             if job.status == "produced":
                 act(cfg.id, "miniaturas", f"Diseñando 2 miniaturas: {title}")
                 job = _step(job, thumbnails.run, cfg)

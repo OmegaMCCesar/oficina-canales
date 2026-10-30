@@ -25,3 +25,11 @@ def insights_block(channel_id: str, limit: int = 25) -> str:
         return "MEMORIA DEL CANAL: aún no hay datos; usa criterio general del nicho."
     lines = [f"- [{i.kind}] {i.statement} (conf {i.confidence:.0%}). Acción: {i.action}" for i in ins]
     return "MEMORIA DEL CANAL (lo que ha funcionado y lo que no):\n" + "\n".join(lines)
+
+
+def lessons_block(channel_id: str, kinds: tuple = ("visual",), limit: int = 12) -> str:
+    """Lecciones visuales que dejó el Crítico de video: el Animador y el Productor las respetan."""
+    ins = [i for i in insights(channel_id, limit=80) if i.kind in kinds][:limit]
+    if not ins:
+        return ""
+    return "LECCIONES DEL CRÍTICO DE VIDEO (aplícalas):\n" + "\n".join(f"- {i.statement}. Haz: {i.action}" for i in ins)

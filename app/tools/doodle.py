@@ -656,9 +656,9 @@ def _layout(W, H, shot):
     has_prop = bool(shot.get("prop") and shot["prop"] in PROPS)
     has_lumi = bool(shot.get("lumi")) and pos != "ninguno"
     if portrait:
-        prop_box = (W * 0.12, H * 0.18, W * 0.88, H * 0.43) if has_lumi else (W * 0.08, H * 0.2, W * 0.92, H * 0.64)
-        r = W * 0.11
-        lumi_c = (W * 0.5, H * 0.6) if has_prop else (W * 0.5, H * 0.43)
+        prop_box = (W * 0.12, H * 0.15, W * 0.88, H * 0.39) if has_lumi else (W * 0.08, H * 0.18, W * 0.92, H * 0.6)
+        r = W * 0.105
+        lumi_c = (W * 0.5, H * 0.535) if has_prop else (W * 0.5, H * 0.4)
         if not has_prop:
             r = W * 0.2
     else:

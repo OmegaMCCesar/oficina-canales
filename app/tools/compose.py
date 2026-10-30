@@ -179,9 +179,12 @@ def music_track(seconds: float, out: Path, mood: str = "calm") -> Path:
 
 
 def final_mix(video: Path, voice: Path, music: Path | None, ass: Path, out: Path, total: float,
-              music_vol: float = 0.12, preset: str = "veryfast") -> Path:
+              music_vol: float = 0.12, preset: str = "veryfast", size: tuple[int, int] | None = None) -> Path:
+    """size: salida final (p. ej. 1080p). YouTube da más calidad a videos de 1080p que a 720p; se escala ANTES de
+    dibujar los subtítulos para que el texto salga nítido."""
     fontsdir = str(FONT_PATH.parent)
-    vf = f"[0:v]subtitles={ass}:fontsdir={fontsdir}[v]"
+    scale = f"scale={size[0]}:{size[1]}:flags=lanczos," if size else ""
+    vf = f"[0:v]{scale}subtitles={ass}:fontsdir={fontsdir}[v]"
     if music:
         fc = (f"{vf};[1:a]apad,asplit=2[vo][sc];[2:a]volume={music_vol}[mu];"
               f"[mu][sc]sidechaincompress=threshold=0.03:ratio=10:attack=20:release=400[duck];"
