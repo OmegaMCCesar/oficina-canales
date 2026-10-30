@@ -154,3 +154,44 @@ def assign_slots(cfg: ChannelConfig) -> list[VideoJob]:
             job.scheduled_for = slot
             to_publish.append(job)
     return to_publish
+
+
+# ---------------- revisión de animación ----------------
+
+class AnimReview(BaseModel):
+    approve: bool
+    score: int                 # 1-10 coherencia y claridad
+    issues: list[str] = []     # problemas concretos por número de escena
+    summary: str
+
+
+SYSTEM_ANIM = """Eres el DIRECTOR revisando el storyboard de animación antes de producir.
+Aprueba solo si:
+- Todas las escenas muestran el MISMO equipo protagonista o elementos coherentes con él.
+- La animación de cada escena ilustra lo que se narra en ESA escena (no otra cosa).
+- Hay progresión lógica (síntoma -> causa -> medición -> solución) y los valores/estados no se contradicen.
+- Lumi tiene la expresión adecuada (advertencia en riesgos, celebración al final) y no satura.
+- El gancho (escena 1) es visualmente fuerte.
+Si algo falla, approve=false y en issues di exactamente qué escena y qué cambiar. Sé exigente pero práctico:
+detalles menores no bloquean (score >= 7 con issues menores puede aprobarse)."""
+
+
+def review_animation(cfg, job, plan, code_issues: list[str]) -> dict:
+    lines = [f"{i+1}. «{s['text']}» -> {s.get('visual')}:{s.get('anim')} {s.get('anim_params_json')} lumi={s.get('lumi')}"
+             for i, s in enumerate(job.script.scenes)]
+    user = f"""{channel_brief(cfg)}
+VIDEO: {job.script.title} ({job.idea.format})
+EQUIPO: {plan.appliance}
+CONTINUIDAD DECLARADA: {plan.continuity}
+STORYBOARD:
+{chr(10).join(lines)}
+PROBLEMAS DETECTADOS AUTOMÁTICAMENTE: {code_issues or 'ninguno'}"""
+    fallback = AnimReview(approve=not code_issues, score=8 if not code_issues else 5, issues=code_issues,
+                          summary="dry-run")
+    try:
+        r = ask_json(SYSTEM_ANIM, user, AnimReview, fallback=fallback)
+    except Exception as e:
+        r = AnimReview(approve=not code_issues, score=6, issues=code_issues, summary=f"revisión no disponible: {e}")
+    if code_issues and r.approve and r.score < 7:
+        r.approve = False
+    return r.model_dump()

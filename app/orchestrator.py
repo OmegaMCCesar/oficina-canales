@@ -16,9 +16,9 @@ import logging
 import traceback
 
 from . import producers
-from .agents import analyst, director, publisher, researcher, retention, seo, thumbnails, writer
+from .agents import analyst, animator, director, publisher, researcher, retention, seo, thumbnails, writer
 from .config import get_channel, load_channels
-from .db import add_activity as act, jobs, log_run, save_job
+from .db import add_activity as act, jobs, log_run, save_job, store
 
 log = logging.getLogger("orchestrator")
 
@@ -125,7 +125,9 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
         act(cfg.id, "director", "César: " + d.requests_to_human[0], kind="ask")
 
     produced = 0
-    for job in jobs(cfg.id, "approved") + jobs(cfg.id, "scripted") + jobs(cfg.id, "produced"):
+    queue = jobs(cfg.id, "approved") + jobs(cfg.id, "scripted") + jobs(cfg.id, "produced")
+    queue.sort(key=lambda j: not j.anim_redo)   # lo que César pidió rehacer va primero
+    for job in queue:
         if produced >= MAX_PRODUCE_PER_RUN:
             break
         title = job.idea.title[:60]
@@ -141,7 +143,11 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
                 act(cfg.id, "retencion", f"Gancho: «{hook[:50]}» · {len(job.script.scenes or job.script.highlights)} cortes", to="seo")
                 act(cfg.id, "seo", "Optimizando título, descripción, etiquetas y hashtags…")
                 job = seo.run(cfg, job)
-                act(cfg.id, "seo", f"Título: {job.script.title[:60]}", to="productor")
+                act(cfg.id, "seo", f"Título: {job.script.title[:60]}", to="animador")
+                job = _animate(cfg, job)
+        elif job.status == "scripted" and job.anim_redo:
+            act(cfg.id, "animador", f"César pidió rehacer la animación: «{job.anim_notes[:60]}»", kind="ask")
+            job = _animate(cfg, job, job.anim_notes)
         if job.status == "scripted":
             act(cfg.id, "productor", f"Generando imágenes, voz y video: {title}")
             job = _step(job, producers.run, cfg)
@@ -178,6 +184,28 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     act(cfg.id, "director", f"Ciclo terminado: {produced} video(s) listos", kind="ok")
     log.info("[%s] ciclo terminado: %s", cfg.id, report)
     return report
+
+
+def _animate(cfg, job, cesar_notes: str = ""):
+    """Animador planea el storyboard con coherencia y el Director lo aprueba (o pide 1 corrección)."""
+    if cfg.production.kind != "generated":
+        return job
+    act(cfg.id, "animador", "Armando storyboard: un equipo, progresión lógica y Lumi coherente…")
+    try:
+        job = animator.run(cfg, job, cesar_notes)
+        sb = store().get(cfg.id, "storyboards", job.id) or {}
+        v = sb.get("verdict", {})
+        act(cfg.id, "animador", f"Storyboard listo ({sb.get('appliance', '?')}, rev {sb.get('revision', 0)})", to="director")
+        msg = f"Animación {sb.get('status', 'aprobada').replace('_', ' ')} · {v.get('score', '?')}/10"
+        if v.get("issues"):
+            msg += f" · {v['issues'][0][:70]}"
+        act(cfg.id, "director", msg, to="productor", kind="ok" if v.get("approve") else "ask")
+    except Exception as e:
+        log.warning("[%s] animador falló (%s); sigo con el plan de Retención", cfg.id, e)
+        act(cfg.id, "animador", f"No pude revisar la animación: {str(e)[:70]}", kind="bad")
+    job.anim_redo = False
+    save_job(job)
+    return job
 
 
 def _dedupe(cfg) -> None:

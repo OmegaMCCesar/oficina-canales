@@ -84,6 +84,8 @@ class VideoJob(BaseModel):
     error: Optional[str] = None
     comment_posted: bool = False
     director_notes: str = ""
+    anim_notes: str = ""          # notas de César para rehacer la animación
+    anim_redo: bool = False
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from . import orchestrator
 from .config import load_channels, settings
@@ -237,6 +237,67 @@ def reject(channel_id: str, job_id: str):
     j.status = "rejected"
     save_job(j)
     return {"ok": True}
+
+
+@app.get("/channels/{channel_id}/storyboards", dependencies=[Depends(auth)])
+def storyboards(channel_id: str, limit: int = 12):
+    """Storyboards del Animador con el veredicto del Director (sin la imagen)."""
+    out = []
+    for d in store().list(channel_id, "storyboards"):
+        d = {k: v for k, v in d.items() if k != "jpeg_b64"}
+        out.append(d)
+    out.sort(key=lambda d: d.get("created_at", ""), reverse=True)
+    from .db import get_job
+    for d in out[:limit]:
+        j = get_job(channel_id, d["job_id"])
+        d["job_status"] = j.status if j else "?"
+    return out[:limit]
+
+
+@app.get("/channels/{channel_id}/storyboards/{job_id}.jpg", include_in_schema=False)
+def storyboard_img(channel_id: str, job_id: str, t: str = ""):
+    """Imagen del storyboard (token por query porque un <img> no manda headers)."""
+    auth(t)
+    import base64
+    d = store().get(channel_id, "storyboards", job_id)
+    if not d or not d.get("jpeg_b64"):
+        raise HTTPException(404)
+    return Response(base64.b64decode(d["jpeg_b64"]), media_type="image/jpeg",
+                    headers={"Cache-Control": "private, max-age=300"})
+
+
+@app.post("/channels/{channel_id}/storyboards/{job_id}/approve", dependencies=[Depends(auth)])
+def storyboard_approve(channel_id: str, job_id: str):
+    d = store().get(channel_id, "storyboards", job_id)
+    if not d:
+        raise HTTPException(404)
+    d["status"], d["cesar"] = "aprobado_por_cesar", "aprobado"
+    store().put(channel_id, "storyboards", job_id, d)
+    from .db import add_activity
+    add_activity(channel_id, "director", "César aprobó la animación 👍", kind="ok")
+    return {"ok": True}
+
+
+@app.post("/channels/{channel_id}/storyboards/{job_id}/redo", dependencies=[Depends(auth)])
+def storyboard_redo(channel_id: str, job_id: str, body: dict):
+    """César pide rehacer la animación con notas: el video vuelve a producción antes de subir."""
+    from .db import add_activity, get_job, save_job
+    j = get_job(channel_id, job_id)
+    if not j:
+        raise HTTPException(404)
+    if j.status in ("scheduled", "published"):
+        raise HTTPException(409, "Ese video ya se subió a YouTube; bórralo en Studio y genera otro")
+    j.status, j.anim_redo = "scripted", True
+    j.anim_notes = str(body.get("notes", ""))[:500]
+    j.video_path, j.thumbnail_paths, j.thumbnail_chosen = None, [], None
+    save_job(j)
+    d = store().get(channel_id, "storyboards", job_id) or {}
+    if d:
+        d["status"] = "rehacer"
+        d["cesar_notes"] = j.anim_notes
+        store().put(channel_id, "storyboards", job_id, d)
+    add_activity(channel_id, "animador", f"Rehago la animación con tus notas: «{j.anim_notes[:60]}»", kind="ask")
+    return {"ok": True, "msg": "Se rehace en el siguiente ciclo"}
 
 
 # Scheduler interno (opcional). En Render es mejor un Cron Job que llame POST /run.

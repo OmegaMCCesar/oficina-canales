@@ -298,3 +298,64 @@ def render(template: str, params: dict, seconds: float, out: Path, w: int, h: in
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg anim falló ({template})")
     return out
+
+
+# ---------------------------------------------------------------- storyboard
+
+APPLIANCE_TEMPLATES = {
+    # qué plantillas son coherentes con cada equipo
+    "refrigerador": {"ciclo_refrigeracion", "multimetro", "termometro", "lista", "titulo"},
+    "minisplit": {"minisplit", "ciclo_refrigeracion", "multimetro", "termometro", "lista", "titulo"},
+    "lavadora": {"lavadora", "multimetro", "lista", "titulo"},
+    "secadora": {"multimetro", "termometro", "lista", "titulo"},
+    "general": set(TEMPLATES),
+}
+
+
+def frame(template: str, params: dict, t: float, w: int, h: int, lumi: str | None = None) -> Image.Image:
+    """Un solo cuadro de la animación (para el storyboard)."""
+    draw = DRAW.get(template, _titulo)
+    s = int(min(w, h) * 0.075)
+    img = _bg(w, h)
+    d = ImageDraw.Draw(img)
+    d._image = img
+    draw(d, w, h, t, params or {}, s)
+    lp = lumi_path(lumi)
+    if lp:
+        size = int(min(w, h) * 0.30)
+        lu = Image.open(lp).convert("RGBA").resize((size, size), Image.LANCZOS)
+        img.paste(lu, (int(w * 0.04), int(h * (0.80 if h > w else 0.66))), lu)
+    return img
+
+
+def storyboard(scenes: list[dict], out: Path, portrait: bool = True, cols: int = 5) -> Path:
+    """Hoja de storyboard: un cuadro por escena con número y frase narrada."""
+    import json as _json
+    tw, th = (216, 384) if portrait else (320, 180)
+    pad, cap = 10, 58
+    rows = (len(scenes) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * (tw + pad) + pad, rows * (th + cap + pad) + pad), (10, 14, 24))
+    d = ImageDraw.Draw(sheet)
+    f = font(13)
+    fb = font(15)
+    for i, sc in enumerate(scenes):
+        x = pad + (i % cols) * (tw + pad)
+        y = pad + (i // cols) * (th + cap + pad)
+        try:
+            prm = _json.loads(sc.get("anim_params_json") or "{}")
+        except Exception:
+            prm = {}
+        if sc.get("visual") == "anim" and sc.get("anim"):
+            im = frame(sc["anim"], prm if isinstance(prm, dict) else {}, 1.6, 720 if portrait else 1280,
+                       1280 if portrait else 720, sc.get("lumi") or None)
+        else:
+            im = frame("titulo", {"texto": f"[{sc.get('visual', '?')}] " + (sc.get('studio_clip') or sc.get('visual_prompt') or '')[:50]},
+                       1.0, 720 if portrait else 1280, 1280 if portrait else 720, sc.get("lumi") or None)
+        sheet.paste(im.resize((tw, th)), (x, y))
+        d.rectangle([x, y, x + 34, y + 24], fill=(183, 242, 26))
+        d.text((x + 17, y + 12), str(i + 1), font=fb, fill=(7, 16, 31), anchor="mm")
+        lines = wrap_lines(d, sc.get("text", ""), f, tw - 6)[:3]
+        for j, ln in enumerate(lines):
+            d.text((x + 3, y + th + 4 + j * 17), ln, font=f, fill=(220, 226, 235))
+    sheet.save(out, quality=82)
+    return out

@@ -84,7 +84,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
 
 .modal{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(5,6,12,.6);
   padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px))}
-.modal form{width:min(440px,100%);background:var(--panel-solid);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px}
+.modal form{width:min(440px,100%);max-height:88vh;overflow-y:auto;background:var(--panel-solid);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px}
 .modal h2{font:700 18px var(--f-display);margin:0;color:var(--lamp)}
 .modal p{margin:0;font-size:13px;line-height:1.5;color:var(--muted)}
 .modal label{display:grid;gap:5px;font-size:12.5px;color:var(--muted)}
@@ -98,6 +98,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
 .act small{font:400 12px var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
 .act .ok{color:var(--ok)} .act .no{color:var(--warn)}
 .act .row{justify-content:flex-start}
+.sb{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#0a0c13}
+.sb img{width:100%;border-radius:6px;cursor:zoom-in;background:#05060a;min-height:60px}
+.sb b{font:600 13px var(--f-display)} .sb ul{margin:0;padding-left:18px;font-size:12px;color:var(--muted)}
+.sb textarea{font:400 12.5px var(--f-mono);color:var(--ink);background:#0d0f17;border:1px solid var(--line);border-radius:8px;padding:8px;min-height:54px;resize:vertical}
+.tag{font:600 11px var(--f-mono);padding:2px 7px;border-radius:99px;border:1px solid currentColor}
 a.btn{text-decoration:none;display:inline-block}
 
 @media (max-width:640px){
@@ -185,13 +190,14 @@ const ROLES = {
   publicador:   {name:"Publicador",   color:0x7bd389, desc:"Sube a YouTube como privado con fecha programada. Nunca publica en ráfaga."},
   analista:     {name:"Analista",     color:0x5aa9e6, desc:"Junta métricas a 24 h, 7 días y 30 días y escribe lecciones en la memoria del canal."},
   retencion:    {name:"Retención",    color:0xe4572e, desc:"Editor de retención y engagement: gancho en el primer segundo, ritmo de cortes cada 2-3 s, loop en shorts, llamadas a la acción y la pregunta para comentarios."},
+  animador:     {name:"Animador",     color:0xb7f21a, desc:"Solo hace animación: arma el storyboard de cada video con el Estudio Animador y Lumi, cuidando la coherencia (un mismo equipo, progresión síntoma→causa→medición→solución, valores que cuadran). El Director lo aprueba; tú lo ves en Acciones y puedes pedir que lo rehaga."},
   seo:          {name:"SEO",          color:0x2ec4b6, desc:"Estratega SEO: título con la búsqueda real al inicio, títulos alternos para probar, descripción, etiquetas, hashtags, capítulos y comentario fijado."},
 };
 // posiciones locales de escritorio (x,z) y hacia dónde mira el robot al trabajar
 const DESKS = {
   analista:     [-5.6,-4.3], director:[0,-4.1], investigador:[-6.8,0.4],
   guionista:    [-3.6,4.2],  productor:[0.2,4.6], miniaturas:[4.0,4.2], publicador:[6.8,0.4],
-  retencion:    [-3.6,-1.6], seo:[3.6,-1.6],
+  retencion:    [-3.6,-1.6], seo:[3.6,-1.6], animador:[0,0.9],
 };
 const ROOMS = [
   {id:"lcmc",   name:"LCMC · Servir para Servir", ox:-9.4, tint:0xf2a65a, floor:0x4a3f52, rug:0x4a3326,
@@ -540,7 +546,12 @@ function demoTick(dt){
     switch (d.step % 8){
       case 0: handoff(R,"investigador","director",`3 ideas nuevas, la mejor: ${title}`, {ack:"La reviso"}); break;
       case 1: handoff(R,"director","guionista",`Aprobada: ${title}`, {ack:"Va"}); break;
-      case 2: handoff(R,"guionista","productor",`Guion listo: ${title}`, {ack:"A render"}); break;
+      case 2:
+        if (R.id === "gaming"){ handoff(R,"guionista","productor",`Guion listo: ${title}`, {ack:"A render"}); break; }
+        handoff(R,"guionista","animador",`Guion listo: ${title}`, {ack:"Armo storyboard",
+          after: () => handoff(R,"animador","director","Storyboard listo: refrigerador, 12 escenas", {ack:"Reviso coherencia",
+            after: () => handoff(R,"director","productor","Animación aprobada 8/10", {kind:"ok", ack:"A render"})})});
+        break;
       case 3: handoff(R,"productor","miniaturas",`Video renderizado (${R.id==="gaming"?"3 highlights":"8 escenas"})`, {ack:"Hago 2"}); break;
       case 4: handoff(R,"miniaturas","director","2 miniaturas, recomiendo la A", {ack:"Elijo la A"}); break;
       case 5: {
@@ -739,8 +750,52 @@ async function renderActions(){
       setTimeout(() => ev.target.disabled = false, 8000);
     };
     actList.append(box);
+    if (R.id === "lcmc") await renderStoryboards(R, box, base);
   }
   if (actMsg.textContent === "Cargando estado…") actMsg.textContent = "";
+}
+const SB_STATUS = {aprobado:["Aprobado por el Director","var(--ok)"], aprobado_con_notas:["Aprobado con notas","var(--lamp)"],
+  aprobado_por_cesar:["Aprobado por ti","var(--ok)"], rehacer:["Se rehace en el próximo ciclo","var(--warn)"], pendiente:["Pendiente","var(--muted)"]};
+async function renderStoryboards(R, box, base){
+  let list = [];
+  try { list = await getJSON(`/channels/${R.id}/storyboards?limit=4`); } catch(e){ return; }
+  const h = document.createElement("small");
+  h.textContent = list.length ? "Animaciones (storyboards del Animador):" : "Aún no hay storyboards: aparecen después del siguiente ciclo.";
+  box.append(h);
+  for (const sb of list){
+    const el = document.createElement("div"); el.className = "sb";
+    const [label, color] = SB_STATUS[sb.status] || [sb.status, "var(--muted)"];
+    const v = sb.verdict || {};
+    el.innerHTML = `<b></b><span class="tag"></span><small class="meta"></small><img alt="Storyboard" loading="lazy"><ul></ul>
+      <textarea placeholder="Notas para el Animador (p. ej. usa el ciclo con el compresor resaltado en la escena 3)"></textarea>
+      <div class="row"><button type="button" class="btn primary" data-a="ok">Aprobar</button><button type="button" class="btn" data-a="redo">Rehacer animación</button></div>`;
+    el.querySelector("b").textContent = sb.title;
+    const tag = el.querySelector(".tag"); tag.textContent = label; tag.style.color = color; tag.style.justifySelf = "start";
+    el.querySelector(".meta").textContent = `Equipo: ${sb.appliance} · Director ${v.score ?? "?"}/10 · revisión ${sb.revision||0} · video: ${sb.job_status}` + (v.summary && v.summary !== "dry-run" ? ` · ${v.summary}` : "");
+    const src = `${base}/channels/${R.id}/storyboards/${sb.job_id}.jpg?t=${encodeURIComponent(api.token)}&v=${encodeURIComponent(sb.created_at||"")}`;
+    const img = el.querySelector("img"); img.src = src; img.onclick = () => window.open(src, "_blank", "noopener");
+    const ul = el.querySelector("ul");
+    for (const it of (v.issues || []).slice(0,4)){ const li = document.createElement("li"); li.textContent = it; ul.append(li); }
+    if (sb.cesar_notes){ const li = document.createElement("li"); li.textContent = "Tus notas: " + sb.cesar_notes; ul.append(li); }
+    const ta = el.querySelector("textarea");
+    const locked = ["scheduled","published"].includes(sb.job_status);
+    if (locked){ ta.hidden = true; el.querySelector('[data-a="redo"]').hidden = true; }
+    el.querySelectorAll("button").forEach(b => b.onclick = async () => {
+      const redo = b.dataset.a === "redo";
+      if (redo && !ta.value.trim()){ ta.focus(); actMsg.style.color = "var(--warn)"; actMsg.textContent = "Escribe qué cambiar para el Animador."; return; }
+      b.disabled = true;
+      try {
+        const r = await fetch(`${base}/channels/${R.id}/storyboards/${sb.job_id}/${redo?"redo":"approve"}`, {method:"POST",
+          headers:{"x-token": api.token, "content-type":"application/json"}, body: JSON.stringify({notes: ta.value.trim()})});
+        if (!r.ok){ const t = await r.json().catch(()=>({})); throw new Error(t.detail || ("La API respondió " + r.status)); }
+        actMsg.style.color = "var(--ok)";
+        actMsg.textContent = redo ? "Listo: el Animador lo rehace en el próximo ciclo (antes de subirlo)." : "Animación aprobada.";
+        R.agents[redo ? "animador" : "director"].say(redo ? "¡Lo rehago con tus notas!" : "César aprobó la animación", redo ? "ask" : "ok", 4);
+        renderActions();
+      } catch(e){ actMsg.style.color = "var(--bad)"; actMsg.textContent = e.message; b.disabled = false; }
+    });
+    box.append(el);
+  }
 }
 document.getElementById("open-actions").onclick = () => { actModal.hidden = false; renderActions(); };
 document.getElementById("close-actions").onclick = () => { actModal.hidden = true; };
