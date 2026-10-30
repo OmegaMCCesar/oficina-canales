@@ -98,6 +98,52 @@ def providers_status():
     return {"configurados": {k: bool(key(k)) for k in keys}, "voz_gratis": "edge-tts (sin llave)", **health.report()}
 
 
+@app.post("/providers/test", dependencies=[Depends(auth)])
+def providers_test():
+    """Prueba real de cada proveedor con una llamada mínima (texto, imagen FLUX, voz Edge)."""
+    import logging as _l
+    import tempfile
+    from pathlib import Path as _P
+
+    from pydantic import BaseModel as _BM
+
+    from .providers import key, text, visuals, voice
+
+    class _Ping(_BM):
+        ok: bool
+        palabra: str
+
+    res: dict = {}
+    for name, env, base, model in text.OPENAI_COMPAT:
+        if key(env) and name not in res:
+            try:
+                o = text._openai_compat(name, env, base, model, "Responde en JSON.", "Di ok=true y una palabra en español.", _Ping)
+                res[name] = f"ok ({o.palabra})"
+            except Exception as e:
+                res[name] = f"error: {str(e)[:160]}"
+    if key("GEMINI_API_KEY"):
+        try:
+            res["gemini"] = "ok (" + text._gemini("Responde en JSON.", "Di ok=true y una palabra.", _Ping, None).palabra + ")"
+        except Exception as e:
+            res["gemini"] = f"error: {str(e)[:160]}"
+    if key("CLOUDFLARE_API_TOKEN"):
+        res["cloudflare_account"] = key("CLOUDFLARE_ACCOUNT_ID") or "no encontrado"
+        try:
+            tmp = _P(tempfile.mkdtemp()) / "flux.jpg"
+            visuals._cloudflare_flux("a refrigerator in a bright kitchen, photo", tmp)
+            res["flux"] = f"ok ({tmp.stat().st_size // 1024} KB)"
+        except Exception as e:
+            res["flux"] = f"error: {str(e)[:160]}"
+    try:
+        tmp = _P(tempfile.mkdtemp()) / "v.mp3"
+        _, w = voice._edge("Hola, soy Lumi.", tmp, voice.EDGE_VOICES["male"], "+8%"), None
+        res["edge-tts"] = f"ok ({tmp.stat().st_size // 1024} KB)"
+    except Exception as e:
+        res["edge-tts"] = f"error: {str(e)[:160]}"
+    _l.getLogger("providers").info("PRUEBA DE PROVEEDORES: %s", res)
+    return res
+
+
 @app.get("/channels/{channel_id}/activity", dependencies=[Depends(auth)])
 def get_activity(channel_id: str, since: str = ""):
     from .db import activity

@@ -26,8 +26,30 @@ from collections import defaultdict
 log = logging.getLogger("providers")
 
 
+_cache: dict[str, str] = {}
+
+
 def key(name: str) -> str:
-    return os.environ.get(name, "").strip()
+    v = os.environ.get(name, "").strip()
+    if not v and name == "CLOUDFLARE_ACCOUNT_ID" and os.environ.get("CLOUDFLARE_API_TOKEN"):
+        v = cloudflare_account_id()
+    return v
+
+
+def cloudflare_account_id() -> str:
+    """Si solo hay token, pregunta a Cloudflare a qué cuenta pertenece (y lo recuerda)."""
+    if "cf_acc" in _cache:
+        return _cache["cf_acc"]
+    import httpx
+    try:
+        r = httpx.get("https://api.cloudflare.com/client/v4/accounts",
+                      headers={"Authorization": f"Bearer {os.environ['CLOUDFLARE_API_TOKEN'].strip()}"}, timeout=20)
+        res = r.json().get("result") or []
+        _cache["cf_acc"] = res[0]["id"] if res else ""
+    except Exception as e:
+        log.warning("no pude obtener el Account ID de Cloudflare: %s", e)
+        _cache["cf_acc"] = ""
+    return _cache["cf_acc"]
 
 
 class Health:
