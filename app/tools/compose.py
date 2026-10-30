@@ -36,7 +36,7 @@ def build_ass(words: list[tuple[float, float, str]], out: Path, w: int, h: int, 
     """accent en formato ASS &HAABBGGRR& (amarillo cálido por defecto)."""
     portrait = h > w
     fs = 62 if portrait else 54
-    margin_v = int(h * (0.24 if portrait else 0.12))
+    margin_v = int(h * (0.20 if portrait else 0.10))
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {w}
@@ -90,14 +90,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return out
 
 
-def stock_clip(src: Path, seconds: float, out: Path, w: int, h: int) -> Path:
+def _lumi_overlay(w: int, h: int) -> str:
+    size = int(min(w, h) * 0.30)
+    y = int(h * (0.80 if h > w else 0.66))
+    return f"[1:v]scale={size}:{size}[lu];[bg][lu]overlay=x={int(w*0.04)}:y='{y}+8*sin(2.4*t)'"
+
+
+def stock_clip(src: Path, seconds: float, out: Path, w: int, h: int, lumi: Path | None = None) -> Path:
     vf = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps=30,setsar=1"
-    _run(["-stream_loop", "-1", "-i", str(src), "-t", f"{max(seconds, 0.6):.2f}", "-vf", vf, "-an",
-          "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", str(out)])
+    args = ["-stream_loop", "-1", "-i", str(src)]
+    if lumi:
+        args += ["-loop", "1", "-i", str(lumi), "-filter_complex", f"[0:v]{vf}[bg];{_lumi_overlay(w, h)}[v]", "-map", "[v]"]
+    else:
+        args += ["-vf", vf]
+    _run([*args, "-t", f"{max(seconds, 0.6):.2f}", "-an", "-c:v", "libx264", "-preset", "veryfast",
+          "-pix_fmt", "yuv420p", str(out)])
     return out
 
 
-def image_clip(img: Path, seconds: float, out: Path, w: int, h: int, k: int = 0) -> Path:
+def image_clip(img: Path, seconds: float, out: Path, w: int, h: int, k: int = 0, lumi: Path | None = None) -> Path:
     """Imagen con movimiento (Ken Burns): alterna zoom in/out y paneo para que nunca esté estática."""
     base = fit_image(img, int(w * 1.15), int(h * 1.15), out.with_name(out.stem + "_base.jpg"))
     frames = max(1, int(seconds * 30))
@@ -108,15 +119,19 @@ def image_clip(img: Path, seconds: float, out: Path, w: int, h: int, k: int = 0)
     else:
         z, x, y = "1.1", f"(iw-iw/zoom)*on/{frames}", "ih/2-(ih/zoom/2)"
     vf = f"zoompan=z='{z}':x='{x}':y='{y}':d={frames}:s={w}x{h}:fps=30,setsar=1"
-    _run(["-loop", "1", "-i", str(base), "-vf", vf, "-t", f"{max(seconds, 0.6):.2f}", "-c:v", "libx264",
-          "-preset", "veryfast", "-pix_fmt", "yuv420p", str(out)])
+    args = ["-loop", "1", "-i", str(base)]
+    if lumi:
+        args += ["-loop", "1", "-i", str(lumi), "-filter_complex", f"[0:v]{vf}[bg];{_lumi_overlay(w, h)}[v]", "-map", "[v]"]
+    else:
+        args += ["-vf", vf]
+    _run([*args, "-t", f"{max(seconds, 0.6):.2f}", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", str(out)])
     return out
 
 
 def card_png(lines: list[str], out: Path, w: int, h: int, sub: str = "", logo: Path | None = None) -> Path:
     img = Image.new("RGB", (w, h))
     d = ImageDraw.Draw(img)
-    top, bot = (24, 28, 46), (60, 44, 90)
+    top, bot = (7, 16, 31), (8, 70, 110)
     for y in range(h):
         t = y / h
         d.line([(0, y), (w, y)], fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
@@ -129,7 +144,7 @@ def card_png(lines: list[str], out: Path, w: int, h: int, sub: str = "", logo: P
     fb = font(int(w * 0.085))
     for line in lines:
         for l in wrap_lines(d, line, fb, int(w * 0.86)):
-            d.text(((w - d.textlength(l, font=fb)) / 2, y), l, font=fb, fill=(242, 193, 78), stroke_width=4, stroke_fill="black")
+            d.text(((w - d.textlength(l, font=fb)) / 2, y), l, font=fb, fill=(183, 242, 26), stroke_width=4, stroke_fill="black")
             y += int(w * 0.11)
     if sub:
         fs = font(int(w * 0.05))

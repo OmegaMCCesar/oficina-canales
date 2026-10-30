@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from ..config import MEDIA_DIR, ChannelConfig, settings
 from ..db import save_job
 from ..llm import generate_image
 from ..models import VideoJob
-from ..tools import compose, ffmpeg
+from ..tools import anim, compose, ffmpeg
 
 log = logging.getLogger("producer.generated")
 
@@ -74,23 +75,44 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         secs = max(0.7, b - a)
         clip = folder / f"clip_{k:02}.mp4"
         query = scn.get("stock_query") or scn.get("visual_prompt", "")[:60]
+        lumi = scn.get("lumi") or None
+        visual = scn.get("visual", "anim")
         made = False
-        if settings().MODE != "dry" and p.prefer_stock_video and scn.get("visual", "video") == "video":
+        if visual == "anim" and scn.get("anim"):
+            try:
+                params = json.loads(scn.get("anim_params_json") or "{}")
+            except Exception:
+                params = {}
+            try:
+                anim.render(scn["anim"], params if isinstance(params, dict) else {}, secs, clip, w, h, lumi)
+                made = True
+            except Exception as e:
+                log.warning("animación %s falló (%s)", scn.get("anim"), e)
+        if not made and visual == "studio" and scn.get("studio_clip"):
+            src = next((f for f in (anim.ASSETS / "studio").glob(scn["studio_clip"] + ".*")), None)
+            if src:
+                compose.stock_clip(src, secs, clip, w, h, lumi=anim.lumi_path(lumi))
+                made = True
+        if not made and settings().MODE != "dry" and p.prefer_stock_video and visual == "video":
             from ..providers.visuals import stock_video
             src = stock_video(query, folder / f"stock_{k:02}.mp4", portrait, used)
             if src:
                 try:
-                    compose.stock_clip(src, secs, clip, w, h)
+                    compose.stock_clip(src, secs, clip, w, h, lumi=anim.lumi_path(lumi))
                     made = True
                 except Exception as e:
                     log.warning("clip de stock falló (%s); uso imagen", e)
                 finally:
                     src.unlink(missing_ok=True)
         if not made:
-            img = generate_image(f"{scn.get('visual_prompt', scn['text'])}. {p.image_style}", folder / f"img_{k:02}.jpg",
-                                 "9:16" if portrait else "16:9", query=query, sources=p.visual_sources, used=used,
-                                 card_text=scn.get("on_screen", ""))
-            compose.image_clip(img, secs, clip, w, h, k)
+            if visual in ("anim", "studio", "video") and not scn.get("visual_prompt"):
+                # sin imagen que pedir: tarjeta animada con la frase clave
+                anim.render("titulo", {"texto": scn.get("on_screen") or scn["text"][:60]}, secs, clip, w, h, lumi)
+            else:
+                img = generate_image(f"{scn.get('visual_prompt', scn['text'])}. {p.image_style}", folder / f"img_{k:02}.jpg",
+                                     "9:16" if portrait else "16:9", query=query, sources=p.visual_sources, used=used,
+                                     card_text=scn.get("on_screen", ""))
+                compose.image_clip(img, secs, clip, w, h, k, lumi=anim.lumi_path(lumi))
         clips.append(clip)
 
     # 3) tarjeta final (solo largos: en shorts rompe el loop)

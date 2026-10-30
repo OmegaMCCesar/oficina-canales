@@ -20,6 +20,7 @@ production:
   music_mood: calm
   brand_name: "LCMC · Servir para Servir"
   watermark: "@LCMC-ServirParaServir"
+  accent_ass: "&H001AF2B7&"     # lima LCMC #B7F21A
   visual_sources: [pexels, pixabay, flux, gemini]   # orden de fuentes de imagen
   prefer_stock_video: true    # clips reales de Pexels/Pixabay antes que imagen fija
   kind: generated

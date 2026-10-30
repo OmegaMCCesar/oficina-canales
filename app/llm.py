@@ -90,7 +90,7 @@ def _card_image(text: str, out_path: Path, aspect: str) -> Path:
     w, h = (720, 1280) if aspect == "9:16" else (1280, 720)
     img = Image.new("RGB", (w, h))
     d = ImageDraw.Draw(img)
-    top, bot = (32, 44, 78), (242, 166, 90)
+    top, bot = (7, 16, 31), (8, 70, 110)
     for y in range(h):
         t = y / h
         d.line([(0, y), (w, y)], fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))

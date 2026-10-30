@@ -20,15 +20,27 @@ from ..llm import ask_json
 from ..models import VideoJob
 from .base import channel_brief, insights_block
 
+
+def studio_catalog() -> str:
+    from ..tools.anim import ASSETS
+    folder = ASSETS / "studio"
+    if not folder.exists():
+        return ""
+    return ", ".join(sorted(p.stem for p in folder.iterdir() if p.suffix.lower() in (".mp4", ".webm", ".mov")))
+
 log = logging.getLogger("retention")
 
 
 class RScene(BaseModel):
     text: str               # una frase narrada (máx ~14 palabras)
     on_screen: str = ""     # 1-3 palabras clave a resaltar (opcional)
-    visual: str = "video"   # video | image
-    stock_query: str        # búsqueda en INGLÉS para Pexels/Pixabay (2-4 palabras concretas)
-    visual_prompt: str      # descripción para IA de imagen si no hay stock
+    visual: str = "anim"    # anim | studio | video | image
+    anim: str = ""          # plantilla del Estudio Animador (si visual=anim)
+    anim_params_json: str = "{}"  # parámetros de la plantilla en JSON
+    studio_clip: str = ""   # nombre de clip del Studio Quinto Sol (si visual=studio)
+    lumi: str = ""          # expresión de Lumi en esta escena ("" = sin Lumi)
+    stock_query: str = ""   # búsqueda en INGLÉS para stock (2-4 palabras concretas)
+    visual_prompt: str = "" # descripción para IA de imagen
 
 
 class RetentionOut(BaseModel):
@@ -56,7 +68,24 @@ repeticiones. Reglas con datos:
   ("¿Qué marca es tu refri y qué código te marca?").
 - stock_query SIEMPRE en inglés, concreto y filmable ("refrigerator compressor closeup",
   "technician multimeter"). visual=video cuando haya acción; image para conceptos.
-- Conserva la información técnica correcta y las advertencias de seguridad del guion."""
+- Conserva la información técnica correcta y las advertencias de seguridad del guion.
+
+VISUALES (en este orden de preferencia):
+1) visual=anim — Estudio Animador propio (gratis, se ve profesional). Úsalo en la MAYORÍA de escenas técnicas.
+   Plantillas y anim_params_json:
+   - ciclo_refrigeracion {"highlight":"compresor|condensador|capilar|evaporador","falla":"texto corto"}
+   - lavadora {"modo":"lavado|centrifugado|desagüe|atorada"}
+   - minisplit {"goteo":true|false,"flujo":"frio|caliente"}
+   - multimetro {"valor":"12.4","unidad":"Ω|V|A|µF","estado":"ok|falla"}
+   - termometro {"desde":4,"hasta":16,"unidad":"°C"}
+   - lista {"titulo":"3 causas","items":["...","...","..."]}  (máx 5 items cortos)
+   - titulo {"texto":"frase corta","sub":"subtítulo"}
+2) visual=studio — clip hecho a mano en el Studio Quinto Sol (solo si existe en el catálogo).
+3) visual=image — imagen IA (visual_prompt) para lo que no cubren las plantillas.
+LUMI (personaje del canal): elige su expresión por escena según la emoción:
+feliz, analizando, pensando, sorpresa, idea, confirmacion, advertencia, listo, aprendizaje, diagnostico,
+solucion, celebracion. Usa "advertencia" en avisos de seguridad, "diagnostico" al medir, "solucion" al
+resolver y "celebracion" en el cierre. Deja lumi vacío en 1 de cada 4 escenas para no saturar."""
 
 
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
@@ -70,9 +99,13 @@ FORMATO: {fmt}
 TÍTULO: {sc.title}
 GUION ORIGINAL (por escenas):
 {chr(10).join(f'{i+1}. {s["text"]}' for i, s in enumerate(sc.scenes))}
-CTA ORIGINAL: {sc.cta}"""
+CTA ORIGINAL: {sc.cta}
+CATÁLOGO DEL STUDIO QUINTO SOL: {studio_catalog() or '(vacío)'}"""
+    tpl = ["titulo", "ciclo_refrigeracion", "multimetro", "lista", "termometro", "lavadora", "minisplit"]
     fb_scenes = [RScene(text=s["text"], stock_query="appliance repair technician", visual_prompt=s.get("visual_prompt", ""),
-                        visual="video" if i % 2 == 0 else "image") for i, s in enumerate(sc.scenes)]
+                        visual="anim", anim=tpl[i % len(tpl)],
+                        anim_params_json='{"texto": "%s"}' % s["text"][:40].replace('"', "") if i % len(tpl) == 0 else "{}",
+                        lumi=["feliz", "diagnostico", "", "idea", "solucion"][i % 5]) for i, s in enumerate(sc.scenes)]
     fallback = RetentionOut(hook_text=" ".join(sc.title.split()[:5]), scenes=fb_scenes,
                             cta_mid="Suscríbete para más fallas resueltas" if fmt == "long" else "",
                             cta_end=sc.cta, comment_question="¿Qué falla tiene tu equipo? Te leo en comentarios",
@@ -84,11 +117,13 @@ CTA ORIGINAL: {sc.cta}"""
         return job
     scenes = [s.model_dump() for s in out.scenes if s.text.strip()]
     if out.cta_end and (not scenes or out.cta_end.strip() not in scenes[-1]["text"]):
-        scenes.append({"text": out.cta_end, "on_screen": "", "visual": "image",
-                       "stock_query": "subscribe button smartphone", "visual_prompt": "Mano tocando botón de suscribirse"})
+        scenes.append({"text": out.cta_end, "on_screen": "", "visual": "anim", "anim": "titulo",
+                       "anim_params_json": '{"texto": "SÍGUEME", "sub": "%s"}' % cfg.production.brand_name,
+                       "lumi": "celebracion", "stock_query": "", "visual_prompt": ""})
     if fmt == "short" and out.loop_line:
-        scenes.append({"text": out.loop_line, "on_screen": "", "visual": scenes[0].get("visual", "video"),
-                       "stock_query": scenes[0].get("stock_query", ""), "visual_prompt": scenes[0].get("visual_prompt", "")})
+        first = dict(scenes[0])
+        first["text"] = out.loop_line
+        scenes.append(first)
     sc.scenes = scenes
     sc.body = " ".join(s["text"] for s in scenes)
     sc.hook_text = out.hook_text
