@@ -75,6 +75,29 @@ def hero_facts(hero: str) -> str:
     return facts[:6000]
 
 
+def hero_media(hero: str) -> dict:
+    """Arte oficial del héroe en la wiki: splash arts (horizontales grandes) e íconos de habilidades (cuadrados chicos)."""
+    files = _get({"action": "parse", "page": hero, "prop": "images", "redirects": "1"})["parse"]["images"]
+    files = [f for f in files if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))][:80]
+    infos = []
+    for i in range(0, len(files), 25):
+        d = _get({"action": "query", "titles": "|".join("File:" + f for f in files[i:i + 25]),
+                  "prop": "imageinfo", "iiprop": "url|size"})
+        for p in d.get("query", {}).get("pages", {}).values():
+            ii = (p.get("imageinfo") or [{}])[0]
+            if ii.get("url"):
+                infos.append((p["title"][5:], ii.get("width", 0), ii.get("height", 0), ii["url"]))
+    splash = [u for n, w, h, u in sorted(infos, key=lambda x: -x[1]) if w >= 800 and w >= h * 1.15][:8]
+    splash = [re.sub(r"/revision/latest", "/revision/latest/scale-to-width-down/1600", u, count=1) for u in splash]
+    icons = []
+    for n, w, h, u in infos:
+        if w and w == h and w <= 300 and "avatar" not in n.lower() and "emblem" not in n.lower():
+            name = re.sub(r"\.(png|jpe?g|webp)$", "", n, flags=re.I).replace("_", " ")
+            name = re.sub(rf"^{re.escape(hero)}\s*[-_ ]?\s*", "", name, flags=re.I).strip() or name
+            icons.append({"name": name, "url": u})
+    return {"splash": splash, "icons": icons[:12]}
+
+
 def run(cfg: ChannelConfig) -> list[Idea]:
     if cfg.production.kind != "gameplay":
         return []
@@ -98,12 +121,19 @@ def run(cfg: ChannelConfig) -> list[Idea]:
             log.info("héroe %s sin datos (%s)", hero, e)
     else:
         return []
+    media = {}
+    if settings().MODE != "dry":
+        try:
+            media = hero_media(hero)
+            log.info("[%s] arte de %s: %d splash, %d íconos", cfg.id, hero, len(media["splash"]), len(media["icons"]))
+        except Exception as e:
+            log.info("sin arte oficial de %s (%s)", hero, e)
     ideas = [
         Idea(channel_id=cfg.id, title=f"{hero}: historia, habilidades y cómo jugarlo", format="long", score=8.8,
-             source="wiki", hero=hero, facts=facts, search_intent=f"{hero} mobile legends guia historia",
+             source="wiki", hero=hero, facts=facts, media=media, search_intent=f"{hero} mobile legends guia historia",
              angle="Guía completa del héroe: su historia en el universo del juego, qué hace cada habilidad y consejos para jugarlo."),
         Idea(channel_id=cfg.id, title=f"La historia de {hero} en menos de un minuto", format="short", score=8.6,
-             source="wiki", hero=hero, facts=facts, search_intent=f"historia de {hero} mlbb",
+             source="wiki", hero=hero, facts=facts, media=media, search_intent=f"historia de {hero} mlbb",
              angle="Short narrativo: el dato más interesante del lore del héroe y su habilidad más vistosa."),
     ]
     for i in ideas:

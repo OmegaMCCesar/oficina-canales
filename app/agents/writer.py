@@ -123,7 +123,8 @@ def _expand_if_short(cfg: ChannelConfig, out: "ScriptOut", target: int, user: st
 
 class HeroScene(BaseModel):
     text: str
-    card: str = ""          # 1-4 palabras para tarjeta animada (nombre de habilidad, dato clave); vacío = imagen
+    media: str = ""         # "splash:N" (arte oficial N) | "icon:Nombre" (ícono de habilidad) | "" 
+    card: str = ""          # 1-4 palabras para tarjeta animada (nombre de habilidad, dato clave)
     visual_prompt: str = ""
 
 
@@ -144,9 +145,12 @@ Estructura del LARGO: gancho con lo más intrigante de su historia, quién es (h
 pasiva y cada habilidad (qué hace y para qué sirve en una pelea), cómo combinarlas, fortalezas y debilidades que se
 deduzcan de sus habilidades, y cierre preguntando a la audiencia. SHORT: un solo dato de su historia o su habilidad más
 vistosa, contado con gancho, 40-55 segundos.
-Escenas de 1-2 frases. En ~la mitad de las escenas pon `card` (nombre de la habilidad o dato clave, 1-4 palabras);
-en las demás deja card vacío y escribe `visual_prompt`: una ilustración GENÉRICA de fantasía épica (paisaje, arma,
-símbolo, ambiente) SIN nombrar al héroe, al juego ni ninguna marca, y sin describir el diseño exacto del personaje.
+Escenas de 1-2 frases. VISUALES (campo media), usando el ARTE OFICIAL disponible:
+- "splash:N" = arte oficial N del héroe: úsalo en ~40% de las escenas (sobre todo historia, gancho y cierre),
+  alternando N para no repetir la misma imagen seguida.
+- "icon:Nombre" = ícono de esa habilidad: úsalo justo cuando explicas esa habilidad (y pon card con su nombre).
+- Si no hay media que encaje, pon `card` (1-4 palabras: dato clave) y deja media vacío.
+- Solo si no hay arte oficial disponible, usa visual_prompt (ilustración genérica de fantasía, sin nombrar al héroe).
 Tono: de jugador a jugador, energético, sin gritos."""
 
 
@@ -159,6 +163,7 @@ HÉROE: {idea.hero}
 IDEA: {idea.title} — {idea.angle}
 {brief(job)}
 FORMATO: {idea.format}. META: ~{target} palabras narradas.
+ARTE OFICIAL DISPONIBLE: {len(idea.media.get("splash", []))} splash (splash:0 a splash:{max(0, len(idea.media.get("splash", [])) - 1)}){"; íconos: " + ", ".join(i["name"] for i in idea.media.get("icons", [])) if idea.media.get("icons") else "; sin íconos"}
 DATOS VERIFICADOS:
 {idea.facts}"""
     fb = HeroOut(title=idea.title[:70], hook=f"¿Sabías esto de {idea.hero}?", hook_text=f"¿QUIÉN ES {idea.hero.upper()}?",
@@ -168,9 +173,27 @@ DATOS VERIFICADOS:
                  cta="Comenta qué héroe quieres que cuente después", description=f"{idea.title}", tags=["mlbb", "mobile legends", idea.hero.lower()])
     out = ask_json(SYSTEM_HERO, user, HeroOut, fallback=fb)
     scenes = []
-    for s in out.scenes:
+    splash = idea.media.get("splash", [])
+    icons = {i["name"].lower(): i["url"] for i in idea.media.get("icons", [])}
+    for k, s in enumerate(out.scenes):
         sc = {"text": s.text, "visual_prompt": s.visual_prompt, "lumi": ""}
-        if s.card.strip() or not s.visual_prompt.strip():
+        m = s.media.strip()
+        if m.startswith("splash") and splash:
+            try:
+                n = int(m.split(":")[1])
+            except Exception:
+                n = k
+            sc.update({"visual": "web", "img_url": splash[n % len(splash)], "on_screen": s.card})
+        elif m.startswith("icon") and icons:
+            want = m.split(":", 1)[-1].strip().lower()
+            url = icons.get(want) or next((u for nm, u in icons.items() if want and (want in nm or nm in want)), None)
+            if url:
+                sc.update({"visual": "icon", "img_url": url, "on_screen": s.card or m.split(":", 1)[-1].strip()})
+            else:
+                sc.update({"visual": "anim", "anim": "titulo", "anim_params_json": json.dumps({"texto": (s.card or want).upper()[:28], "sub": idea.hero}, ensure_ascii=False)})
+        elif splash and not s.card.strip() and k % 3 == 0:
+            sc.update({"visual": "web", "img_url": splash[k % len(splash)]})   # sin media pero hay arte: úsalo
+        elif s.card.strip() or not s.visual_prompt.strip():
             sc.update({"visual": "anim", "anim": "titulo", "on_screen": s.card,
                        "anim_params_json": json.dumps({"texto": (s.card or idea.hero).upper()[:28], "sub": idea.hero}, ensure_ascii=False)})
         else:

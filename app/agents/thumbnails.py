@@ -112,6 +112,13 @@ ESTILO VISUAL: {cfg.production.image_style}
         if cfg.production.kind == "gameplay" and job.script.highlights:
             h = job.script.highlights[0]
             ffmpeg.frame_at(Path(job.video_path), max(0.5, (h["end"] - h["start"]) / 2), base)
+        elif job.idea.media.get("splash"):
+            # canal de gaming: arte oficial del héroe de fondo
+            from ..producers.generated import _fetch
+            sp = job.idea.media["splash"]
+            src = _fetch(sp[k % len(sp)], folder)
+            from PIL import Image as _I
+            _I.open(src).convert("RGB").save(base, quality=92)
         elif v.anim:
             import json as _j
 

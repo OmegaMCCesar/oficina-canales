@@ -113,6 +113,81 @@ def _photo(cfg: ChannelConfig, asset_id: str, folder: Path, k: int, w: int, h: i
     return out
 
 
+def _fetch(url: str, folder: Path) -> Path | None:
+    """Descarga una imagen (arte oficial de la wiki) con caché por URL; máx 10 MB."""
+    import hashlib
+
+    import httpx
+    out = folder / ("web_" + hashlib.md5(url.encode()).hexdigest()[:12] + ".img")
+    if out.exists():
+        return out
+    if url.startswith("/") and Path(url).exists():      # pruebas locales
+        out.write_bytes(Path(url).read_bytes())
+        return out
+    r = httpx.get(url, headers={"User-Agent": "OficinaDeCanales/1.0 (@LCMCGAMES)"}, timeout=40, follow_redirects=True)
+    r.raise_for_status()
+    if len(r.content) > 10_000_000:
+        return None
+    out.write_bytes(r.content)
+    return out
+
+
+def _framed(src: Path, out: Path, w: int, h: int, label: str = "") -> Path:
+    """Imagen completa (sin cortar al personaje) sobre su propia versión desenfocada; opcional etiqueta abajo."""
+    from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+    ph = Image.open(src).convert("RGB")
+    W, H = int(w * 1.15), int(h * 1.15)
+    sc = max(W / ph.width, H / ph.height)
+    bg = ph.resize((int(ph.width * sc) + 1, int(ph.height * sc) + 1))
+    bg = bg.crop(((bg.width - W) // 2, (bg.height - H) // 2, (bg.width - W) // 2 + W, (bg.height - H) // 2 + H))
+    bg = ImageEnhance.Brightness(bg.filter(ImageFilter.GaussianBlur(26))).enhance(0.5)
+    fg = ph.copy()
+    landscape_fill = w > h and ph.width >= ph.height
+    fg.thumbnail((int(w * (1.0 if landscape_fill else 0.9)), int(h * (0.86 if landscape_fill else 0.62))))
+    x, y = (W - fg.width) // 2, (H - fg.height) // 2 - (int(h * 0.04) if h > w else 0)
+    bg.paste(fg, (x, y))
+    if label:
+        d = ImageDraw.Draw(bg)
+        fs = max(26, min(w, h) // 16)
+        f = ffmpeg.font(fs)
+        tw = d.textlength(label, font=f)
+        lx, ly = (W - tw) / 2, y + fg.height + fs * 0.6
+        d.rounded_rectangle([lx - fs * 0.6, ly - fs * 0.3, lx + tw + fs * 0.6, ly + fs * 1.4], radius=fs // 2, fill=(139, 124, 246))
+        d.text((lx, ly), label, font=f, fill="white")
+    bg.save(out, quality=90)
+    return out
+
+
+def _icon_card(src: Path, out: Path, w: int, h: int, name: str) -> Path:
+    """Tarjeta de habilidad: ícono oficial grande al centro + nombre."""
+    from PIL import Image, ImageDraw
+    W, H = int(w * 1.15), int(h * 1.15)
+    bg = Image.new("RGB", (W, H))
+    d = ImageDraw.Draw(bg)
+    top, bot = (16, 12, 40), (52, 36, 110)
+    for yy in range(H):
+        t = yy / H
+        d.line([(0, yy), (W, yy)], fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
+    ic = Image.open(src).convert("RGBA")
+    size = int(min(W, H) * 0.42)
+    ic = ic.resize((size, size), Image.LANCZOS)
+    landscape = W > H
+    cx, cy = (int(W * 0.33), int(H * 0.44)) if landscape else (W // 2, int(H * 0.38))
+    d.ellipse([cx - size * 0.62, cy - size * 0.62, cx + size * 0.62, cy + size * 0.62], fill=(139, 124, 246))
+    bg.paste(ic, (cx - size // 2, cy - size // 2), ic)
+    fs = max(30, min(W, H) // 13)
+    f = ffmpeg.font(fs)
+    lines = ffmpeg.wrap_lines(d, name.upper(), f, int(W * (0.38 if landscape else 0.8)))[:3]
+    for i, line in enumerate(lines):
+        if landscape:   # nombre a la derecha del ícono, lejos de los subtítulos
+            d.text((int(W * 0.56), cy - (len(lines) * fs * 1.2) / 2 + i * fs * 1.2), line, font=f, fill=(255, 255, 255),
+                   anchor="lt", stroke_width=4, stroke_fill="black")
+        else:
+            d.text((cx, cy + size * 0.8 + i * fs * 1.2), line, font=f, fill=(255, 255, 255), anchor="mt", stroke_width=4, stroke_fill="black")
+    bg.save(out, quality=90)
+    return out
+
+
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     sc = job.script
     assert sc and sc.scenes
@@ -158,7 +233,17 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         lumi = scn.get("lumi") or None
         visual = scn.get("visual", "anim")
         made = False
-        if visual == "photo" and scn.get("photo_id"):
+        if visual in ("web", "icon") and scn.get("img_url"):
+            try:
+                src = _fetch(scn["img_url"], folder)
+                if src:
+                    img = (_icon_card(src, folder / f"icon_{k:02}.jpg", w, h, scn.get("on_screen") or "")
+                           if visual == "icon" else _framed(src, folder / f"web_{k:02}.jpg", w, h))
+                    compose.image_clip(img, secs, clip, w, h, k)
+                    made = True
+            except Exception as e:
+                log.warning("arte oficial no disponible (%s); uso tarjeta", e)
+        if not made and visual == "photo" and scn.get("photo_id"):
             try:
                 ph = _photo(cfg, scn["photo_id"], folder, k, w, h)
                 if ph:
@@ -242,6 +327,9 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     out = compose.final_mix(silent, voice, music, ass, folder / "final.mp4", total,
                             preset="veryfast" if portrait else "superfast")
 
+    for pat in ("web_*", "icon_*"):
+        for f in folder.glob(pat):
+            f.unlink(missing_ok=True)
     for f in folder.glob("clip_*"):
         f.unlink(missing_ok=True)   # liberar disco; final.mp4 se queda
     silent.unlink(missing_ok=True)

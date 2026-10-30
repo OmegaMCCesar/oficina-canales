@@ -44,6 +44,7 @@ class Idea(BaseModel):
     trailer_of: str = ""            # short tráiler: id del job largo al que manda
     hero: str = ""                  # gaming generado: héroe del que trata
     facts: str = ""                 # datos verificados (wiki) que el guion debe respetar
+    media: dict = Field(default_factory=dict)   # arte oficial del héroe: {"splash": [url], "icons": [{name, url}]}
     created_at: datetime = Field(default_factory=now)
 
 
