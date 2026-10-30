@@ -74,7 +74,12 @@ class _FirestoreStore:
         import firebase_admin
         from firebase_admin import credentials, firestore
 
-        if not firebase_admin._apps:
+        try:
+            firebase_admin.get_app()
+            _ready = True
+        except ValueError:
+            _ready = False
+        if not _ready:
             b64 = settings().FIREBASE_CREDENTIALS_B64
             if b64:
                 import base64
@@ -108,12 +113,16 @@ class _FirestoreStore:
 
 
 _store = None
+_store_lock = threading.Lock()
 
 
 def store():
+    """Una sola instancia aunque varias peticiones lleguen a la vez al arrancar."""
     global _store
     if _store is None:
-        _store = _FirestoreStore() if settings().MODE == "live" else _LocalStore()
+        with _store_lock:
+            if _store is None:
+                _store = _FirestoreStore() if settings().MODE == "live" else _LocalStore()
     return _store
 
 
