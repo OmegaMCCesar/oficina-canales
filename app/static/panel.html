@@ -50,6 +50,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
 .pill.live i{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 .pill.demo i{background:var(--lamp)}
 .pill.err i{background:var(--bad)}
+.pill.clock{cursor:pointer;color:var(--ink)}
 
 .feed{left:max(16px, env(safe-area-inset-left,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 14px);width:min(380px, calc(100vw - 32px));
   background:var(--panel);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px);overflow:hidden}
@@ -141,8 +142,10 @@ a.btn{text-decoration:none;display:inline-block}
       <button type="button" id="v-all" aria-pressed="true">Toda la oficina</button>
       <button type="button" id="v-lcmc" aria-pressed="false">LCMC</button>
       <button type="button" id="v-gaming" aria-pressed="false">LCMC Games</button>
+      <button type="button" id="v-dorms" aria-pressed="false">Dormitorios</button>
     </div>
     <span class="pill demo" id="status"><i></i><span>Demo</span></span>
+    <button type="button" class="pill clock" id="clock">…</button>
     <button type="button" class="btn" id="open-actions" hidden>Acciones</button>
     <button type="button" class="btn" id="open-connect">Conectar API</button>
   </div>
@@ -303,7 +306,7 @@ scene.background = new THREE.Color(0x11131d);
 const camera = new THREE.OrthographicCamera(-1,1,1,-1,0.1,300);
 const view = {az:Math.PI/4, el:0.95, target:new THREE.Vector3(0,0,2.6), size:34, goalTarget:new THREE.Vector3(0,0,2.6), goalSize:34};
 
-scene.add(new THREE.HemisphereLight(0xb8c6ff, 0x2a2030, 0.95));
+const hemi = new THREE.HemisphereLight(0xb8c6ff, 0x2a2030, 0.95); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffe2b8, 1.15);
 sun.position.set(-14,28,18); sun.castShadow = true;
 sun.shadow.mapSize.set(2048,2048);
@@ -417,7 +420,7 @@ function buildRoom(R){
     leaf.position.set(px,0.95,pz); leaf.castShadow = true; g.add(leaf);
   }
   // lámpara cálida
-  const lamp = new THREE.PointLight(0xffc77a, 1.1, 18, 2); lamp.position.set(0,4.5,0.5); g.add(lamp);
+  const lamp = new THREE.PointLight(0xffc77a, 1.1, 18, 2); lamp.position.set(0,4.5,0.5); g.add(lamp); R.lamp = lamp;
 
   // escritorios + agentes
   R.agents = {};
@@ -444,6 +447,8 @@ function buildRoom(R){
   }
   buildLounge(R);
   R.pet = new Pet(R);
+  buildDorm(R);
+  for (const b of R.beds){ R.agents[b.role].bed = b; }
 }
 function drawChart(R){
   const {canvas, tex, values, label} = R.chart; const g = canvas.getContext("2d");
@@ -480,6 +485,11 @@ class Agent {
     this.arms = [-1,1].map(s => { const p = new THREE.Group(); p.position.set(s*.41,1.0,0); root.add(p);
       box(.12,.42,.14,body,0,-.2,0,p); const h = new THREE.Mesh(new THREE.SphereGeometry(.08,10,8), shell); h.position.y = -.43; p.add(h); return p; });
     const head = new THREE.Group(); head.position.y = 1.38; root.add(head); this.head = head;
+    root.rotation.order = "YXZ";
+    this.sleepOffset = Math.floor(Math.random() * 12); this.zIn = 1;
+    this.cap = new THREE.Group(); this.cap.visible = false; head.add(this.cap);
+    const capC = new THREE.Mesh(new THREE.ConeGeometry(.3, .6, 14), M(ROLES[role].color, {roughness:.9})); capC.position.set(0.1, .55, -0.05); capC.rotation.z = -0.5; this.cap.add(capC);
+    const pom = new THREE.Mesh(new THREE.SphereGeometry(.09, 10, 8), M(0xffffff)); pom.position.set(0.36, .78, -0.05); this.cap.add(pom);
     box(.78,.58,.66,body,0,0,0,head);
     box(.64,.32,.05,dark,0,.02,.33,head);
     this.eyes = [-1,1].map(s => { const e = new THREE.Mesh(new THREE.SphereGeometry(.055,10,8), new THREE.MeshBasicMaterial({color:0xc9fbff})); e.position.set(s*.14,.03,.37); head.add(e); return e; });
@@ -516,6 +526,7 @@ class Agent {
     this.showProp(null); this.resetPose();
   }
   backToWork(){
+    if (this.state === "sleep" || (this.state === "walk" && this.phase === "bed")){ this.wake(true); this.goTo(this.home, "return"); }
     if (this.hobby || this.state === "coffee"){ this.stopHobby(); if (!this.queue.length && !this.task) this.goTo(this.home, "return"); }
     this.wanderIn = 40 + Math.random()*30;
   }
@@ -549,7 +560,22 @@ class Agent {
     this.root.add(this.bubble); this.bubbleT = secs;
   }
   note(text){ this.log.unshift({t:new Date(), text}); this.log.length = Math.min(this.log.length, 12); if (selected === this) renderAgent(); }
+  goSleep(){
+    if (!this.bed) return;
+    this.stopHobby(); this.carry.visible = false; this.cap.visible = true;
+    this.goTo(this.bed.walk, "bed");
+  }
+  wake(silent){
+    if (this.state === "sleep"){
+      this.root.rotation.x = 0; this.root.position.copy(this.bed.walk); this.root.position.y = 0;
+      this.bed.lump.visible = false; this.bed.flat.visible = true;
+      this.eyes.forEach(e => e.scale.y = 1);
+    }
+    this.cap.visible = false; this.state = "work";
+    if (!silent) this.say(anyOf(["¡Buenos días!", "¡A trabajar!", "Un café y arranco", "Dormí como bebé"]), "ok", 3);
+  }
   enqueue(task){
+    if (this.state === "sleep" || (this.state === "walk" && this.phase === "bed")){ this.wake(true); this.say("¡Voy! (turno de noche)", "ask", 2.5); }
     this.queue.push(task);
     if (this.hobby || this.state === "coffee"){ this.stopHobby(); this.next(); return; }
     if (this.state === "work" || (this.state === "walk" && this.phase === "return")) this.next();
@@ -564,6 +590,8 @@ class Agent {
   statusText(){
     if (this.state === "walk" && this.phase === "deliver") return "Caminando a " + (this.task?.toName || "entregar");
     if (this.state === "walk" && this.phase === "wander") return "Por un café";
+    if (this.state === "sleep") return "Durmiendo (despierta a las 7:00)";
+    if (this.state === "walk" && this.phase === "bed") return "Se va a dormir";
     if (this.state === "walk" && this.phase === "hobby" && this.hobby) return "Va a su descanso: " + HOBBIES[this.hobby.kind].label;
     if (this.state === "hobby" && this.hobby){ const pa = this.partner(); return HOBBIES[this.hobby.kind].doing + (pa ? " con " + crew(this.room, pa.role).nick : ""); }
     if (this.state === "walk") return "Regresando a su escritorio";
@@ -608,6 +636,22 @@ class Agent {
     const blink = (Math.sin(t*0.9 + this.seed*3) > 0.985) ? 0.15 : 1;
     if (!(this.state === "hobby" && this.hobby && this.hobby.kind === "siesta")) this.eyes.forEach(e => e.scale.y = blink);
     this.bulb.material.emissiveIntensity = (this.state === "work" ? 0.9 + 0.5*Math.sin(t*4+this.seed) : 1.4);
+    const night = isNight(this.sleepOffset);
+    const idle = !this.task && !this.queue.length;
+    if (this.state === "sleep"){
+      if (!night){ this.wake(); this.goTo(this.home, "return"); return; }
+      this.eyes.forEach(e => e.scale.y = 0.1);
+      this.bulb.material.emissiveIntensity = 0.25 + 0.15*Math.sin(t*0.8 + this.seed);
+      this.zIn -= dt;
+      if (this.zIn <= 0 && !REDUCED){ this.zIn = 2.2 + Math.random(); const p = this.root.position.clone(); p.y += 1.2; p.z += (this.bed.yaw ? 1.6 : -1.6); floatSprite(this.room, "Z", this.room.lounge.worldToLocal(this.room.group.localToWorld(p)), "#c9d3ff"); }
+      this.screenMat.emissiveIntensity = 0.02;
+      return;
+    }
+    if (night && idle && (this.state === "work" || this.state === "hobby" || this.state === "coffee" ||
+        (this.state === "walk" && ["return", "hobby", "wander"].includes(this.phase)))){
+      this.goSleep();
+    }
+    if (!night && this.cap.visible && this.state === "walk" && this.phase === "bed"){ this.wake(true); this.goTo(this.home, "return"); }
     if (this.state === "walk"){
       const p = this.root.position; const d = this.dest.clone().sub(p); d.y = 0; const dist = d.length();
       const sp = 2.3*dt;
@@ -623,6 +667,12 @@ class Agent {
           this.state = "hand"; this.wait = 1.6; this.root.rotation.y = this.task.faceTo ? Math.atan2(this.task.faceTo.x - p.x, this.task.faceTo.z - p.z) : this.root.rotation.y;
           this.say(this.task.msg, this.task.kind || "info");
         } else if (this.phase === "wander"){ this.state = "coffee"; this.wait = 3 + Math.random()*3; this.say("Café ☕", "info", 2.5); }
+        else if (this.phase === "bed" && this.bed){
+          this.state = "sleep"; this.resetPose();
+          this.root.position.copy(this.bed.lie); this.root.rotation.set(-Math.PI/2, this.bed.yaw, 0);
+          this.bed.flat.visible = false; this.bed.lump.visible = true;
+          this.note("Se fue a dormir");
+        }
         else if (this.phase === "hobby" && this.hobby){
           this.state = "hobby";
           this.showProp({pingpong:"paddle", guitarra:"guitar", lectura:"book", plantas:"can", pintura:"brush", cafe:"mug"}[this.hobby.kind] || null);
@@ -650,7 +700,7 @@ class Agent {
       if (this.chatIn <= 0){ this.chatIn = 30 + Math.random()*50; if (Math.random() < .35 && !this.bubble) this.say(anyOf(crew(this.room, this.role).quotes), "info", 3.5); }
     }
     const atDesk = this.state === "work";
-    this.screenMat.emissiveIntensity = atDesk ? 0.55 + 0.15*Math.sin(t*9 + this.seed) : 0.12;
+    this.screenMat.emissiveIntensity = atDesk ? 0.55 + 0.15*Math.sin(t*9 + this.seed) : (nightLevel > 0.5 ? 0.02 : 0.12);
   }
 }
 function lerpAngle(a,b,k){ let d = b - a; while (d > Math.PI) d -= 2*Math.PI; while (d < -Math.PI) d += 2*Math.PI; return a + d*k; }
@@ -837,6 +887,18 @@ class Pet {
   update(dt, t){
     if (this.bubble){ this.bubbleT -= dt; if (this.bubbleT < 0){ this.root.remove(this.bubble); this.bubble = null; } }
     this.tail.rotation.x = Math.sin(t*(this.dest ? 6 : 3) + this.seed)*0.6;
+    if (isNight(5) && this.R.petBed){
+      const d = this.R.petBed.clone().sub(this.root.position); d.y = 0;
+      if (d.length() > 0.08){
+        this.root.rotation.y = lerpAngle(this.root.rotation.y, Math.atan2(d.x, d.z) - Math.PI/2, Math.min(1, dt*8));
+        this.root.position.add(d.normalize().multiplyScalar(Math.min(1.4*dt, d.length())));
+      } else {
+        this.root.position.y = 0.1; this.tail.rotation.x = 0.2; this.head.rotation.y = 0.6;
+        this.zIn = (this.zIn ?? 2) - dt;
+        if (this.zIn <= 0 && !REDUCED){ this.zIn = 3; const p = this.root.position.clone(); p.y += 0.8; floatSprite(this.R, "z", this.R.lounge.worldToLocal(this.R.group.localToWorld(p)), "#c9d3ff"); }
+      }
+      this.dest = null; return;
+    }
     if (!this.dest){
       this.wait -= dt; this.head.rotation.y = Math.sin(t*0.8 + this.seed)*0.4;
       if (this.wait <= 0){
@@ -857,6 +919,98 @@ class Pet {
     }
   }
 }
+
+/* ---------------- Horario: de 00:00 a 07:00 (hora de CDMX) todos duermen en los dormitorios ---------------- */
+const SCHEDULE = {sleep: 0, wake: 7, tz: "America/Mexico_City"};
+let nightOverride = "auto";      // auto | dia | noche (botón del reloj)
+function cdmxMinutes(){
+  const parts = new Intl.DateTimeFormat("es-MX", {timeZone: SCHEDULE.tz, hour: "numeric", minute: "numeric", hourCycle: "h23"}).formatToParts(new Date());
+  const h = +parts.find(p => p.type === "hour").value, m = +parts.find(p => p.type === "minute").value;
+  return h * 60 + m;
+}
+function isNight(offsetMin = 0){
+  if (nightOverride === "dia") return false;
+  if (nightOverride === "noche") return true;
+  const m = cdmxMinutes();
+  // cada robot tiene su propia hora (se van a dormir entre 00:00 y 00:12, despiertan entre 7:00 y 7:10)
+  return m >= SCHEDULE.sleep * 60 + offsetMin && m < SCHEDULE.wake * 60 + offsetMin;
+}
+function buildDorm(R){
+  const g = new THREE.Group(); g.position.z = 0; R.group.add(g); R.dorm = g;
+  const Z0 = 15.0, Z1 = 22.6;
+  const carpet = new THREE.Mesh(new THREE.PlaneGeometry(17.2, Z1 - Z0), M(R.id === "gaming" ? 0x2b2950 : 0x3a2f45, {roughness:1}));
+  carpet.rotation.x = -Math.PI/2; carpet.position.set(0, 0.008, (Z0 + Z1)/2); carpet.receiveShadow = true; g.add(carpet);
+  const wall = M(0x34385a), trim = M(R.tint, {roughness:.5});
+  box(17.4, 0.9, 0.25, wall, 0, 0.45, Z1, g); box(17.4, 0.08, 0.28, trim, 0, 0.92, Z1, g);
+  for (const sx of [-8.7, 8.7]) box(0.25, 0.9, Z1 - Z0, wall, sx, 0.45, (Z0 + Z1)/2, g);
+  for (const [a, b] of [[-8.7, -1.4], [1.4, 8.7]]) box(b - a, 0.9, 0.25, wall, (a + b)/2, 0.45, Z0, g);
+  const lbl = textCanvas(["Dormitorios"], {font:"700 54px 'Pixelify Sans', sans-serif", bg:"rgba(0,0,0,0)", fg:"#"+new THREE.Color(R.tint).getHexString(), pad:8});
+  const ltex = new THREE.CanvasTexture(lbl); ltex.encoding = THREE.sRGBEncoding;
+  const lm = new THREE.Mesh(new THREE.PlaneGeometry(0.62*lbl.width/lbl.height, 0.62), new THREE.MeshBasicMaterial({map:ltex, transparent:true}));
+  lm.rotation.x = -Math.PI/2; lm.position.set(0, 0.02, (Z0 + Z1)/2); g.add(lm);   // en el pasillo
+  // luz nocturna tenue (solo se enciende de noche)
+  R.dormLight = new THREE.PointLight(0x8fb6ff, 0, 16, 2); R.dormLight.position.set(0, 3.2, (Z0 + Z1)/2); g.add(R.dormLight);
+  // 16 camas: dos filas de 8, cabeceras contra los muros y pasillo al centro
+  R.beds = [];
+  const roles = Object.keys(DESKS);
+  for (let row = 0; row < 2; row++){
+    for (let i = 0; i < 8; i++){
+      const x = -7.35 + i * 2.1;
+      const headZ = row === 0 ? Z0 + 0.45 : Z1 - 0.45;
+      const dir = row === 0 ? 1 : -1;                 // hacia el pasillo
+      const cz = headZ + dir * 1.1;
+      const role = roles[row * 8 + i];
+      const color = role ? ROLES[role].color : 0x9aa0b8;
+      box(1.3, 0.35, 2.2, M(0x8a5a3c, {roughness:.7}), x, 0.175, cz, g);
+      box(1.2, 0.18, 2.1, M(0xf6f3ec, {roughness:1}), x, 0.44, cz, g);
+      box(0.9, 0.14, 0.45, M(0xffffff, {roughness:1}), x, 0.6, headZ + dir * 0.35, g);
+      box(0.12, 0.7, 0.12, M(0x8a5a3c), x - 0.55, 0.35, headZ, g); box(0.12, 0.7, 0.12, M(0x8a5a3c), x + 0.55, 0.35, headZ, g);
+      box(1.3, 0.12, 0.1, M(0x8a5a3c), x, 0.72, headZ, g);
+      const flat = box(1.24, 0.08, 1.3, M(color, {roughness:.9}), x, 0.56, cz + dir * 0.35, g);
+      const lump = box(1.28, 0.72, 1.35, M(color, {roughness:.9}), x, 0.9, cz + dir * 0.35, g); lump.visible = false;
+      if (i % 2 === 0) box(0.45, 0.5, 0.45, M(0x5a4a3c), x + 1.05, 0.25, headZ + dir * 0.3, g);
+      if (!role) continue;
+      R.beds.push({role, flat, lump,
+        lie: new THREE.Vector3(x, 0.87, headZ + dir * 2.05), yaw: row === 0 ? 0 : Math.PI,
+        walk: new THREE.Vector3(x + 0.95, 0, cz + dir * 0.3)});
+    }
+  }
+  R.petBed = new THREE.Vector3(2.4, 0, Z0 + 0.9);
+  const cushion = new THREE.Mesh(new THREE.CylinderGeometry(.45, .5, .14, 18), M(PETS[R.id].color, {roughness:1}));
+  cushion.position.set(2.4, 0.07, Z0 + 0.9); cushion.castShadow = true; g.add(cushion);
+}
+// cielo estrellado para la noche
+const stars = (() => {
+  const n = 420, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2, r = 30 + Math.random() * 60;
+    pos[i*3] = Math.cos(a) * r; pos[i*3+1] = 8 + Math.random() * 40; pos[i*3+2] = Math.sin(a) * r;
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({color: 0xffffff, size: 0.35, transparent: true, opacity: 0, depthWrite: false}));
+  scene.add(pts); return pts;
+})();
+const DAY_BG = new THREE.Color(0x11131d), NIGHT_BG = new THREE.Color(0x04050b);
+let nightLevel = isNight() ? 1 : 0;
+function applyNight(dt){
+  const target = isNight() ? 1 : 0;
+  nightLevel += Math.sign(target - nightLevel) * Math.min(Math.abs(target - nightLevel), dt * 0.35);
+  const n = nightLevel;
+  hemi.intensity = 0.95 - 0.62 * n; sun.intensity = 1.15 - 1.0 * n;
+  scene.background.copy(DAY_BG).lerp(NIGHT_BG, n);
+  stars.material.opacity = 0.85 * n;
+  for (const R of ROOMS){ R.lamp.intensity = 1.1 * (1 - n); R.dormLight.intensity = 0.9 * n; }
+}
+const clockEl = document.getElementById("clock");
+function renderClock(){
+  const m = cdmxMinutes(), hh = String(Math.floor(m / 60)).padStart(2, "0"), mm = String(m % 60).padStart(2, "0");
+  const night = isNight();
+  const forced = nightOverride !== "auto" ? " · forzado" : "";
+  clockEl.textContent = night ? `🌙 ${hh}:${mm} · duermen hasta las 7:00${forced}` : `☀️ ${hh}:${mm} · horario 7:00–24:00${forced}`;
+  clockEl.title = "Hora de Ciudad de México. Toca para ver el día o la noche sin esperar.";
+}
+clockEl.onclick = () => { nightOverride = {auto: "dia", dia: "noche", noche: "auto"}[nightOverride]; renderClock(); };
+setInterval(renderClock, 10000);
 
 ROOMS.forEach(buildRoom);
 
@@ -1351,14 +1505,15 @@ document.getElementById("agent-close").onclick = () => { selected = null; panel.
 setInterval(() => { if (selected) document.getElementById("a-state").textContent = selected.statusText(); }, 500);
 
 /* ---------------- Cámara e interacción ---------------- */
-const FOCUS = {all:{x:0,z:3,size:35}, lcmc:{x:ROOMS[0].ox,z:3.6,size:21}, gaming:{x:ROOMS[1].ox,z:3.6,size:21}};
+const FOCUS = {all:{x:0,z:5,size:38}, lcmc:{x:ROOMS[0].ox,z:3.6,size:21}, gaming:{x:ROOMS[1].ox,z:3.6,size:21}, dorms:{x:0,z:18.8,size:30}};
 function focus(k){
   view.goalTarget.set(FOCUS[k].x, 0, FOCUS[k].z); view.goalSize = FOCUS[k].size;
-  for (const id of ["all","lcmc","gaming"]) document.getElementById("v-"+id).setAttribute("aria-pressed", String(id===k));
+  for (const id of ["all","lcmc","gaming","dorms"]) document.getElementById("v-"+id).setAttribute("aria-pressed", String(id===k));
 }
 document.getElementById("v-all").onclick = () => focus("all");
 document.getElementById("v-lcmc").onclick = () => focus("lcmc");
 document.getElementById("v-gaming").onclick = () => focus("gaming");
+document.getElementById("v-dorms").onclick = () => focus("dorms");
 
 function resize(){
   const w = host.clientWidth || innerWidth, h = host.clientHeight || innerHeight;
@@ -1418,7 +1573,8 @@ function frame(){
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   view.target.lerp(view.goalTarget, Math.min(1, dt*4)); view.size += (view.goalSize - view.size) * Math.min(1, dt*4);
   placeCamera();
-  if (mode === "demo") demoTick(dt);
+  if (mode === "demo" && !isNight()) demoTick(dt);
+  applyNight(dt);
   for (const R of ROOMS){
     for (const a of Object.values(R.agents)) a.update(dt, t);
     for (const st of Object.values(R.stations)) st.anim && st.anim(t, dt);
@@ -1434,7 +1590,8 @@ function frame(){
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-if (innerWidth < 640) focus("lcmc");
+renderClock();
+if (isNight()) focus("dorms"); else if (innerWidth < 640) focus("lcmc");
 feed(ROOMS[0], "Oficina abierta en modo demo. Conecta tu API para ver la actividad real.");
 requestAnimationFrame(frame);
 })();
