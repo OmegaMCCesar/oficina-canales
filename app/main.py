@@ -87,6 +87,13 @@ def decisions(channel_id: str):
     return store().list(channel_id, "decisions", limit=20)
 
 
+@app.get("/channels/{channel_id}/runs", dependencies=[Depends(auth)])
+def runs(channel_id: str):
+    docs = store().list(channel_id, "runs", limit=200)
+    docs.sort(key=lambda d: str(d.get("finished") or d.get("started") or ""), reverse=True)
+    return docs[:5]
+
+
 @app.get("/channels/{channel_id}/status", dependencies=[Depends(auth)])
 def channel_status(channel_id: str):
     from .db import get_secret

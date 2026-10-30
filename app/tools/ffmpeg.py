@@ -90,6 +90,26 @@ def scene_clip(image: Path, audio: Path, out: Path, subtitle: str, portrait: boo
     return out
 
 
+def scene_still(image: Path, seconds: float, out: Path, subtitle: str, portrait: bool = True) -> Path:
+    """Imagen -> clip mudo de `seconds` con zoom suave y subtítulo (la voz se mezcla al final)."""
+    w, h = (1080, 1920) if portrait else (1920, 1080)
+    base = fit_image(image, int(w * 1.1), int(h * 1.1), out.with_name(out.stem + "_base.jpg"))
+    cap = caption_png(subtitle, w, h, out.with_name(out.stem + "_cap.png"), 0.76 if portrait else 0.85,
+                      58 if portrait else 46)
+    fc = (f"[0:v]zoompan=z='min(zoom+0.0007,1.10)':d=100000:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+          f":s={w}x{h}:fps=30[bg];[bg][1:v]overlay=0:0[v]")
+    _run(["-loop", "1", "-i", str(base), "-loop", "1", "-i", str(cap), "-filter_complex", fc, "-map", "[v]",
+          "-t", f"{max(seconds, 0.8):.2f}", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+          "-r", "30", str(out)])
+    return out
+
+
+def mux_audio(video: Path, audio: Path, out: Path) -> Path:
+    _run(["-i", str(video), "-i", str(audio), "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac",
+          "-shortest", str(out)])
+    return out
+
+
 def concat(clips: list[Path], out: Path) -> Path:
     lst = out.with_suffix(".txt")
     lst.write_text("".join(f"file '{c.resolve()}'\n" for c in clips))

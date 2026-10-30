@@ -166,8 +166,9 @@ def save_decision(d: DirectorDecision) -> None:
     store().put(d.channel_id, "decisions", d.created_at.strftime("%Y-%m-%dT%H%M"), d)
 
 
-def log_run(channel_id: str, payload: dict) -> None:
-    store().put(channel_id, "runs", datetime.utcnow().strftime("%Y-%m-%dT%H%M%S"), payload)
+def log_run(channel_id: str, payload: dict, run_id: str | None = None) -> None:
+    rid = run_id or datetime.utcnow().strftime("%Y-%m-%dT%H%M%S")
+    store().put(channel_id, "runs", rid, payload)
 
 
 # ---------- secretos por canal (token OAuth de YouTube) ----------

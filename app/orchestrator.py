@@ -22,7 +22,7 @@ from .db import jobs, log_run, save_job
 
 log = logging.getLogger("orchestrator")
 
-MAX_PRODUCE_PER_RUN = 4   # tope de costo por ciclo
+MAX_PRODUCE_PER_RUN = 2   # tope por ciclo (cuidar cuota gratuita de Gemini)
 
 
 def _step(job, fn, cfg):
@@ -37,6 +37,23 @@ def _step(job, fn, cfg):
 
 
 def run_channel(channel_id: str, publish: bool = True) -> dict:
+    """Ejecuta el ciclo y SIEMPRE deja registro (aunque falle) para que el panel lo muestre."""
+    from datetime import datetime, timezone
+    started = datetime.now(timezone.utc).isoformat()
+    rid = started[:19].replace(":", "")
+    log_run(channel_id, {"channel": channel_id, "status": "running", "started": started}, rid)
+    try:
+        report = _run_channel(channel_id, publish)
+        report.update(status="ok", started=started, finished=datetime.now(timezone.utc).isoformat())
+    except Exception as e:
+        log.error("[%s] ciclo falló\n%s", channel_id, traceback.format_exc())
+        report = {"channel": channel_id, "status": "failed", "error": str(e)[:400], "started": started,
+                  "finished": datetime.now(timezone.utc).isoformat()}
+    log_run(channel_id, report, rid)
+    return report
+
+
+def _run_channel(channel_id: str, publish: bool = True) -> dict:
     cfg = get_channel(channel_id)
     report: dict = {"channel": channel_id}
 
@@ -72,7 +89,6 @@ def run_channel(channel_id: str, publish: bool = True) -> dict:
     report["scheduled"] = uploaded
     report["failed"] = [{"id": j.id, "error": j.error} for j in jobs(cfg.id, "failed")][:5]
 
-    log_run(cfg.id, report)
     log.info("[%s] ciclo terminado: %s", cfg.id, report)
     return report
 

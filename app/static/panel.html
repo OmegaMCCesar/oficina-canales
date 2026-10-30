@@ -582,6 +582,7 @@ async function pollRoom(R){
     getJSON(`/channels/${R.id}/queue`), getJSON(`/channels/${R.id}/insights`), getJSON(`/channels/${R.id}/decisions`),
   ]);
   let mets = []; try { mets = await getJSON(`/channels/${R.id}/metrics`); } catch(e){}
+  let runs = []; try { runs = await getJSON(`/channels/${R.id}/runs`); } catch(e){}
   const prev = live.prev[R.id] || {}; const first = !live.first[R.id];
   const counts = {};
   for (const j of queue){
@@ -599,6 +600,24 @@ async function pollRoom(R){
     else if (j.status === "rejected"){ R.agents.director.note(`Rechazó ${title}`); }
   }
   live.prev[R.id] = prev;
+  const run = runs[0];
+  if (run){
+    const key = run.started + "|" + run.status;
+    const seen = live.run && live.run[R.id];
+    live.run = live.run || {};
+    if (seen !== key){
+      live.run[R.id] = key;
+      if (!first || run.status === "running"){
+        if (run.status === "running"){ R.agents.director.say("Ciclo en marcha, equipo", "ok", 5); feed(R, "Ciclo en marcha"); }
+        else if (run.status === "failed"){ R.agents.director.say("El ciclo falló: " + (run.error||""), "bad", 9); feed(R, "El ciclo falló: " + (run.error||"sin detalle")); }
+        else if (run.status === "ok"){
+          const up = (run.scheduled||[]).length;
+          feed(R, `Ciclo terminado: ${run.ideas||0} ideas, ${run.approved||0} aprobadas, ${run.produced||0} producidos, ${up} subidos a YouTube`);
+          R.agents.director.say(up ? `${up} video(s) en YouTube Studio para revisar` : "Ciclo terminado", "ok", 7);
+        }
+      }
+    }
+  }
   const seenIns = live.insights[R.id] || new Set();
   for (const i of ins){
     if (seenIns.has(i.id)) continue; seenIns.add(i.id);

@@ -184,10 +184,14 @@ def recent_comments(channel_id: str, max_results: int = 50) -> list[str]:
             "Sube más de Magic Chess, la compo de magos está rota",
             "Qué build usas con Lancelot?",
         ]
-    yt = data_api(channel_id)
-    r = yt.commentThreads().list(part="snippet", allThreadsRelatedToChannelId=channel_id_of(channel_id),
-                                 maxResults=max_results, order="time", textFormat="plainText").execute()
-    return [t["snippet"]["topLevelComment"]["snippet"]["textDisplay"] for t in r.get("items", [])]
+    try:
+        yt = data_api(channel_id)
+        r = yt.commentThreads().list(part="snippet", allThreadsRelatedToChannelId=channel_id_of(channel_id),
+                                     maxResults=max_results, order="time", textFormat="plainText").execute()
+        return [t["snippet"]["topLevelComment"]["snippet"]["textDisplay"] for t in r.get("items", [])]
+    except Exception as e:  # sin permiso de comentarios o canal sin comentarios: seguir sin ellos
+        log.warning("[%s] no pude leer comentarios: %s", channel_id, str(e)[:160])
+        return []
 
 
 def channel_id_of(channel_id: str) -> str:
