@@ -15,6 +15,7 @@ from ..db import save_job
 from ..llm import ask_json
 from ..models import VideoJob
 from .base import channel_brief, insights_block
+from .packaging import brief
 
 log = logging.getLogger("seo")
 
@@ -53,6 +54,8 @@ FORMATO: {job.idea.format}
 IDEA: {job.idea.title} — {job.idea.angle}
 INTENCIÓN DE BÚSQUEDA: {job.idea.search_intent}
 TÍTULO DEL GUIONISTA: {sc.title}
+{brief(job)}
+(Puedes pulir el título para búsqueda, pero conserva la MISMA promesa del empaque.)
 GANCHO: {sc.hook_text or sc.hook}
 PREGUNTA PARA COMENTARIOS: {sc.comment_question}
 NARRACIÓN: {sc.body[:1800]}"""
@@ -87,6 +90,13 @@ def build_description(job: VideoJob) -> str:
     """Descripción final con capítulos (largos) y hashtags; la usa el Publicador."""
     sc = job.script
     parts = [sc.description.strip()]
+    if job.idea.trailer_of:
+        from ..db import get_job
+        parent = get_job(job.channel_id, job.idea.trailer_of)
+        if parent and parent.youtube_video_id:
+            parts.insert(0, f"▶ Video completo: https://youtu.be/{parent.youtube_video_id}")
+    if sc.affiliate_block:
+        parts.append(sc.affiliate_block)
     if job.idea.format == "long" and len(sc.chapters) >= 3:
         lines = []
         for ch in sc.chapters:

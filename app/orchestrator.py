@@ -16,7 +16,8 @@ import logging
 import traceback
 
 from . import producers
-from .agents import analyst, animator, director, publisher, researcher, retention, seo, thumbnails, writer
+from .agents import (analyst, animator, director, human_touch, monetization, packaging, quality, showrunner,)
+from .agents import publisher, researcher, retention, seo, thumbnails, writer
 from .config import get_channel, load_channels
 from .db import add_activity as act, jobs, log_run, save_job, store
 
@@ -111,6 +112,15 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     else:
         act(cfg.id, "analista", "Aún no hay métricas para aprender")
 
+    act(cfg.id, "monetizacion", "Midiendo el avance para monetizar…")
+    prog = _safe(monetization.progress, cfg)
+    if prog:
+        hours = prog.get("long_hours_365")
+        act(cfg.id, "monetizacion", f"Suscriptores {prog['subs']}/500 · horas de largos {hours if hours is not None else '?'}/3000",
+            to="director")
+    act(cfg.id, "showrunner", "Revisando las series: ¿qué capítulo sigue?")
+    _safe(showrunner.run, cfg)
+
     act(cfg.id, "investigador", "Buscando temas: comentarios, tendencias y memoria del canal…")
     new_ideas = researcher.run(cfg)
     report["ideas"] = len(new_ideas)
@@ -132,8 +142,13 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
             break
         title = job.idea.title[:60]
         if job.status == "approved":
-            act(cfg.id, "director", f"Aprobada: {title}", to="guionista")
-            act(cfg.id, "guionista", f"Escribiendo guion: {title}")
+            act(cfg.id, "director", f"Aprobada: {title}", to="empaque")
+            act(cfg.id, "empaque", "Diseñando 3 empaques (título + miniatura) antes del guion…")
+            job = _safe(packaging.run, cfg, job) or job
+            if job.package:
+                act(cfg.id, "empaque", f"«{job.package['title'][:50]}» + «{job.package['thumb_text']}»", to="director")
+                act(cfg.id, "director", f"Empaque aprobado: {job.package.get('reason', '')[:70]}", to="guionista", kind="ok")
+            act(cfg.id, "guionista", f"Escribiendo guion para cumplir la promesa: {title}")
             job = _step(job, writer.run, cfg)
             if job.status == "scripted":
                 act(cfg.id, "guionista", f"Guion listo ({len(job.script.scenes or job.script.highlights)} partes)", to="retencion")
@@ -143,8 +158,19 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
                 act(cfg.id, "retencion", f"Gancho: «{hook[:50]}» · {len(job.script.scenes or job.script.highlights)} cortes", to="seo")
                 act(cfg.id, "seo", "Optimizando título, descripción, etiquetas y hashtags…")
                 job = seo.run(cfg, job)
-                act(cfg.id, "seo", f"Título: {job.script.title[:60]}", to="animador")
+                act(cfg.id, "seo", f"Título: {job.script.title[:60]}", to="monetizacion")
+                job = _safe(monetization.run, cfg, job) or job
+                n_links = sum(1 for p in job.script.products if p.get("url"))
+                act(cfg.id, "monetizacion", f"{n_links} link(s) de afiliado en la descripción" if n_links else
+                    "Descripción con link a tu sitio; sin productos con link aún", to="animador")
                 job = _animate(cfg, job)
+                if cfg.production.kind == "generated":
+                    job = _safe(human_touch.attach, cfg, job) or job
+                act(cfg.id, "calidad", "Revisando datos técnicos, seguridad, promesa y originalidad…")
+                job = _safe(quality.run, cfg, job) or job
+                if job.status == "rejected":
+                    act(cfg.id, "director", f"Descartado por Calidad: {title}", kind="bad")
+                    continue
         elif job.status == "scripted" and job.anim_redo:
             act(cfg.id, "animador", f"César pidió rehacer la animación: «{job.anim_notes[:60]}»", kind="ask")
             job = _animate(cfg, job, job.anim_notes)
@@ -162,6 +188,7 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
         if job.status == "failed":
             act(cfg.id, "director", f"Falló: {title} ({(job.error or '')[:80]})", kind="bad")
     report["produced"] = produced
+    _safe(human_touch.make_requests, cfg)
 
     uploaded = []
     if publish:
@@ -184,6 +211,15 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     act(cfg.id, "director", f"Ciclo terminado: {produced} video(s) listos", kind="ok")
     log.info("[%s] ciclo terminado: %s", cfg.id, report)
     return report
+
+
+def _safe(fn, *args):
+    """Un agente nuevo que falla no debe tirar el ciclo completo."""
+    try:
+        return fn(*args)
+    except Exception as e:
+        log.exception("%s falló: %s", getattr(fn, "__module__", fn), e)
+        return None
 
 
 def _animate(cfg, job, cesar_notes: str = ""):

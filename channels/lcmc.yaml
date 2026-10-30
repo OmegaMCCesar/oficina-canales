@@ -51,3 +51,29 @@ director_rules: |
   - Siempre incluir advertencia de seguridad cuando se abra un equipo o se manipule gas.
   - Si un tema tuvo retención > 55% en 7 días, programa una secuela o variante en la siguiente semana.
   - Nunca más de 1 short al día ni 2 largos a la semana, aunque haya cola.
+
+site_url: "https://lcmc-servir-para-servir.com.mx"
+site_cta: "📚 Guías y cursos gratuitos de línea blanca en"
+
+# Series del Showrunner: videos largos encadenados (playlist) que suman horas de reproducción
+series_seeds:
+  - title: "Refrigeración por componente"
+    description: "Un video largo por cada componente del sistema de refrigeración, explicado a detalle: qué hace, cómo falla y cómo se prueba."
+    episodes:
+      - "El compresor: qué hace, cómo falla y cómo probarlo"
+      - "El condensador: por qué se tapa y cómo limpiarlo"
+      - "El tubo capilar: obstrucciones y cómo detectarlas"
+      - "El evaporador: escarcha, fugas y fallas comunes"
+      - "El termostato y el sensor: cuando el refri no sabe qué temperatura tiene"
+      - "El sistema No Frost: resistencia de deshielo, bimetal y timer"
+      - "El ventilador del evaporador y del condensador"
+      - "El capacitor y el relevador de arranque del compresor"
+  - title: "Curso de lavadoras desde cero"
+    description: "Electrónica y mecánica de lavadoras sin importar la marca: tronco común por componentes, cada quien elige desde qué capítulo empezar."
+    episodes:
+      - "Cómo funciona una lavadora automática por dentro"
+      - "El motor y la transmisión: lavado y centrifugado"
+      - "La bomba de desagüe: atascos y cómo probarla"
+      - "La válvula de llenado y el sensor de nivel"
+      - "El seguro de la tapa y por qué no centrifuga"
+      - "La tarjeta electrónica: lo básico para diagnosticar"

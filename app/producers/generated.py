@@ -52,6 +52,67 @@ def _voice(cfg: ChannelConfig, text: str, out: Path):
     return speak(text, out, cfg.production.voice_gender, cfg.production.voice_rate)
 
 
+def _cesar_voice(cfg: ChannelConfig, asset_id: str, folder: Path, portrait: bool):
+    """Nota de voz de César normalizada a mp3. En shorts solo si dura ≤ 20 s."""
+    from ..agents.human_touch import asset_file
+    from ..tools.tts import duration
+    src = asset_file(cfg.id, asset_id, folder)
+    if not src:
+        return None
+    out = folder / "cesar_voz.mp3"
+    try:
+        ffmpeg._run(["-i", str(src), "-vn", "-af", "loudnorm=I=-16:TP=-1.5,aformat=sample_rates=44100:channel_layouts=mono",
+                     "-t", "60", "-c:a", "libmp3lame", "-b:a", "128k", str(out)])
+    finally:
+        src.unlink(missing_ok=True)
+    d = duration(out)
+    if not d or (portrait and d > 20):
+        log.info("nota de voz de César no usada (%.1fs)", d or 0)
+        return None
+    return out, d
+
+
+def _splice(voice: Path, insert: Path, cut: float, out: Path) -> Path:
+    fmt = "aformat=sample_rates=44100:channel_layouts=mono"
+    fc = (f"[0:a]atrim=0:{cut:.3f},asetpts=PTS-STARTPTS,{fmt}[a0];[0:a]atrim=start={cut:.3f},asetpts=PTS-STARTPTS,{fmt}[a1];"
+          f"[1:a]{fmt},apad=pad_dur=0.25[c];[a0][c][a1]concat=n=3:v=0:a=1[a]")
+    ffmpeg._run(["-i", str(voice), "-i", str(insert), "-filter_complex", fc, "-map", "[a]", "-c:a", "libmp3lame", "-b:a", "128k", str(out)])
+    return out
+
+
+def _photo(cfg: ChannelConfig, asset_id: str, folder: Path, k: int, w: int, h: int) -> Path | None:
+    """Foto real de César completa sobre fondo desenfocado, con la etiqueta 'CASO REAL · CÉSAR'."""
+    from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+
+    from ..agents.human_touch import asset_file
+    src = asset_file(cfg.id, asset_id, folder)
+    if not src:
+        return None
+    ph = Image.open(src).convert("RGB")
+    src.unlink(missing_ok=True)
+    W, H = int(w * 1.15), int(h * 1.15)          # image_clip recorta ~15% al hacer zoom
+    sc = max(W / ph.width, H / ph.height)
+    bg = ph.resize((int(ph.width * sc) + 1, int(ph.height * sc) + 1))
+    bg = bg.crop(((bg.width - W) // 2, (bg.height - H) // 2, (bg.width - W) // 2 + W, (bg.height - H) // 2 + H))
+    bg = ImageEnhance.Brightness(bg.filter(ImageFilter.GaussianBlur(28))).enhance(0.45)
+    fg = ph.copy()
+    fg.thumbnail((int(w * 0.86), int(h * 0.62)))
+    x, y = (W - fg.width) // 2, (H - fg.height) // 2
+    d = ImageDraw.Draw(bg)
+    d.rounded_rectangle([x - 8, y - 8, x + fg.width + 8, y + fg.height + 8], radius=18, fill=(183, 242, 26))
+    bg.paste(fg, (x, y))
+    fs = max(24, w // 20)
+    f = ffmpeg.font(fs)
+    label = "CASO REAL · CÉSAR"
+    tw = d.textlength(label, font=f)
+    lx, ly = (W - tw) / 2, y - fs * 2.3
+    d.rounded_rectangle([lx - fs * 0.6, ly - fs * 0.3, lx + tw + fs * 0.6, ly + fs * 1.4], radius=fs // 2, fill=(183, 242, 26))
+    d.text((lx, ly), label, font=f, fill=(7, 16, 31))
+    out = folder / f"foto_{k:02}.jpg"
+    bg.save(out, quality=90)
+    return out
+
+
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     sc = job.script
     assert sc and sc.scenes
@@ -69,6 +130,24 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
 
     # 2) visuales por escena
     bounds = _scene_bounds(sc.scenes, words, total_voice)
+
+    # voz real de César (toque humano): entra justo después del gancho
+    cesar_seg = None
+    vid = next((x["id"] for x in sc.human if x.get("kind") == "voice"), None)
+    if vid:
+        try:
+            got = _cesar_voice(cfg, vid, folder, portrait)
+            if got:
+                cpath, cdur = got
+                cdur += 0.25
+                cut = bounds[0][1] if len(bounds) > 1 else 0.0
+                voice = _splice(voice, cpath, cut, folder / "voz_total.mp3")
+                words = [(a + cdur, b + cdur, wd) if a >= cut - 1e-3 else (a, b, wd) for a, b, wd in words]
+                bounds = [(a + cdur, b + cdur) if i > 0 else (a, b) for i, (a, b) in enumerate(bounds)]
+                total_voice += cdur
+                cesar_seg = (cut, cdur)
+        except Exception as e:
+            log.warning("no pude insertar la voz de César (%s)", e)
     used: set = set()
     clips: list[Path] = []
     for k, (scn, (a, b)) in enumerate(zip(sc.scenes, bounds)):
@@ -78,6 +157,14 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         lumi = scn.get("lumi") or None
         visual = scn.get("visual", "anim")
         made = False
+        if visual == "photo" and scn.get("photo_id"):
+            try:
+                ph = _photo(cfg, scn["photo_id"], folder, k, w, h)
+                if ph:
+                    compose.image_clip(ph, secs, clip, w, h, k)
+                    made = True
+            except Exception as e:
+                log.warning("foto de César falló (%s)", e)
         if visual == "anim" and scn.get("anim"):
             try:
                 params = json.loads(scn.get("anim_params_json") or "{}")
@@ -114,6 +201,10 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
                                      card_text=scn.get("on_screen", ""))
                 compose.image_clip(img, secs, clip, w, h, k, lumi=anim.lumi_path(lumi))
         clips.append(clip)
+        if k == 0 and cesar_seg:
+            cc = folder / "clip_cesar.mp4"
+            anim.render("titulo", {"texto": "LA VOZ DE CÉSAR", "sub": "Técnico · 15 años en línea blanca"}, cesar_seg[1], cc, w, h, "confirmacion")
+            clips.append(cc)
 
     # 3) tarjeta final (solo largos: en shorts rompe el loop)
     total = total_voice
@@ -129,6 +220,8 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     if not portrait and sc.cta_mid:
         mid = total_voice * 0.35
         ctas.append((mid, mid + 3.5, sc.cta_mid))
+    if cesar_seg:
+        ctas.append((cesar_seg[0] + 0.2, cesar_seg[0] + min(cesar_seg[1], 4.0), "CASO REAL"))
     ctas.append((max(0, total_voice - 3.0), total_voice + (5 if not portrait else 0.3), "SUSCRÍBETE" if not portrait else "SÍGUEME PARA MÁS"))
     ass = compose.build_ass(words, folder / "subs.ass", w, h, hook=sc.hook_text or sc.hook,
                             watermark=p.watermark, intro_banner=(p.brand_name if not portrait else ""),

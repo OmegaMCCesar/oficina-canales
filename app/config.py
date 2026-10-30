@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
     API_TOKEN: str = "dev"
     GAMING_INBOX: str = "./media/gaming/inbox"
+    AMAZON_ASSOCIATE_TAG: str = ""          # Amazon Afiliados México (p. ej. lcmc-20)
 
 
 @lru_cache
@@ -91,6 +92,9 @@ class ChannelConfig(BaseModel):
     banned_topics: list[str] = Field(default_factory=list)
     director_rules: str = ""         # texto libre que el Director respeta
     games: list[str] = Field(default_factory=list)   # solo gaming
+    site_url: str = ""               # sitio propio (cursos, guías) para la descripción
+    site_cta: str = ""
+    series_seeds: list[dict] = Field(default_factory=list)   # [{title, description, episodes:[...]}]
 
 
 @lru_cache

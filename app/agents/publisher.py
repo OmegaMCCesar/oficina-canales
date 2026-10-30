@@ -36,6 +36,9 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         job.youtube_video_id = vid
         job.status = "scheduled"
         log.info("[%s] programado %s -> %s @ %s", cfg.id, job.script.title, vid, job.scheduled_for)
+        save_job(job)
+        from .showrunner import on_uploaded
+        on_uploaded(cfg, job)
     except Exception as e:
         job.status = "failed"
         job.error = f"upload: {e}"

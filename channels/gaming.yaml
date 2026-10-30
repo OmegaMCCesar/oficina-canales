@@ -45,3 +45,11 @@ director_rules: |
   - Un short por momento destacado; nunca dos shorts de la misma partida el mismo día.
   - Títulos con el héroe y el resultado concreto ("Fanny 15 kills en Mítico"), sin clickbait falso.
   - Seguir meta del parche: el Investigador reporta héroes en tendencia cada semana.
+
+series_seeds:
+  - title: "Mis partidas comentadas"
+    description: "Partidas completas comentadas: decisiones, rotaciones y por qué se ganó o se perdió."
+    episodes:
+      - "Partida comentada: remontada desde 10 mil de oro abajo"
+      - "Partida comentada: cómo cerrar la partida con Lord"
+      - "Magic Chess comentado: de último a primer lugar"

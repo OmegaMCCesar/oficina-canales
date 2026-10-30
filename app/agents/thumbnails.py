@@ -17,6 +17,7 @@ from ..llm import ask_json, generate_image
 from ..models import VideoJob
 from ..tools import ffmpeg
 from .base import channel_brief, insights_block
+from .packaging import brief
 
 log = logging.getLogger("thumbs")
 
@@ -85,7 +86,9 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
 {insights_block(cfg.id, 10)}
 VIDEO: {job.script.title}
 GANCHO: {job.script.hook}
-ESTILO VISUAL: {cfg.production.image_style}"""
+ESTILO VISUAL: {cfg.production.image_style}
+{brief(job)}
+(La variante 1 debe ser fiel a la miniatura del empaque; la 2 es tu alternativa.)"""
     fallback = ThumbOut(variants=[
         ThumbIdea(text=" ".join(job.script.title.split()[:3]), visual_prompt=f"Primer plano de {job.idea.title}",
                   lumi="sorpresa", anim="ciclo_refrigeracion", anim_params_json='{"highlight": "compresor"}'),

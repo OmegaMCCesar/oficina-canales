@@ -239,6 +239,60 @@ def reject(channel_id: str, job_id: str):
     return {"ok": True}
 
 
+@app.get("/channels/{channel_id}/office", dependencies=[Depends(auth)])
+def office(channel_id: str):
+    """Todo lo de los puestos nuevos en una sola llamada: monetización, bandeja de César, series y calidad."""
+    from .agents import human_touch, monetization, showrunner
+    prog = store().get(channel_id, "money", "progress")
+    q = sorted(store().list(channel_id, "quality"), key=lambda d: d.get("at", ""), reverse=True)[:5]
+    return {
+        "progress": prog, "thresholds": monetization.thresholds(),
+        "pending_products": monetization.pending(channel_id)[:10],
+        "links": len(monetization.links(channel_id)),
+        "amazon_tag": bool(settings().AMAZON_ASSOCIATE_TAG),
+        "requests": human_touch.requests(channel_id)[:6],
+        "assets": human_touch.assets(channel_id)[:10],
+        "series": [{"id": s["id"], "title": s["title"], "playlist_id": s.get("playlist_id", ""),
+                    "episodes": [{"n": e["n"], "title": e["title"], "status": e["status"]} for e in s["episodes"]]}
+                   for s in showrunner.series(channel_id)],
+        "quality": q,
+    }
+
+
+@app.post("/channels/{channel_id}/human/assets", dependencies=[Depends(auth)])
+def human_upload(channel_id: str, body: dict):
+    """César sube una foto o nota de voz (base64) desde el panel."""
+    import base64
+    import binascii
+
+    from .agents import human_touch
+    b64 = str(body.get("b64", ""))
+    if len(b64) > 1_000_000:
+        raise HTTPException(413, "Archivo muy grande (máx 700 KB)")
+    try:
+        raw = base64.b64decode(b64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(400, "Archivo inválido")
+    try:
+        return human_touch.save_asset(channel_id, str(body.get("kind", "")), str(body.get("mime", "")), raw,
+                                      str(body.get("note", "")), str(body.get("request_id", "")))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/channels/{channel_id}/money/links", dependencies=[Depends(auth)])
+def money_link(channel_id: str, body: dict):
+    """César pega el link de afiliado de un producto pendiente (Mercado Libre, Amazon u otra tienda)."""
+    from urllib.parse import urlparse
+
+    from .agents import monetization
+    product, url = str(body.get("product", "")).strip()[:120], str(body.get("url", "")).strip()[:500]
+    u = urlparse(url)
+    if not product or u.scheme != "https" or not u.netloc:
+        raise HTTPException(400, "Pon el nombre del producto y un link que empiece con https://")
+    return monetization.save_link(channel_id, product, url)
+
+
 @app.get("/channels/{channel_id}/storyboards", dependencies=[Depends(auth)])
 def storyboards(channel_id: str, limit: int = 12):
     """Storyboards del Animador con el veredicto del Director (sin la imagen)."""

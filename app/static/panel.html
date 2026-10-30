@@ -105,6 +105,23 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
 .sb textarea{font:400 12.5px var(--f-mono);color:var(--ink);background:#0d0f17;border:1px solid var(--line);border-radius:8px;padding:8px;min-height:54px;resize:vertical}
 .sbtag{font:600 11px var(--f-mono);padding:2px 7px;border-radius:99px;border:1px solid currentColor}
 a.btn{text-decoration:none;display:inline-block}
+.sec{border:1px solid var(--line);border-radius:8px;background:#0a0c13;padding:8px 10px}
+.sec summary{cursor:pointer;font:600 13px var(--f-display);list-style-position:inside}
+.sec[open] summary{margin-bottom:8px}
+.sec > *:not(summary){margin-top:6px}
+.sec small{display:block;font:400 12px var(--f-body);color:var(--muted);line-height:1.45}
+.sec small.warn{color:var(--warn)} .sec small.bad{color:var(--bad)}
+.lvl{display:block;font:600 12.5px var(--f-body);color:var(--lamp);margin-top:10px}
+.bar{display:grid;gap:3px}
+.bar-t{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted)} .bar-t b{color:var(--ink);font:500 12px var(--f-mono)}
+.bar-tr{height:8px;border-radius:99px;background:#1a1d2b;overflow:hidden} .bar-tr i{display:block;height:100%;background:linear-gradient(90deg,#2dc653,#b7f21a);border-radius:99px}
+.req{display:grid;gap:6px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#0d0f17}
+.req b{font:600 12.5px var(--f-body)}
+.up{display:grid;gap:6px} .up .row{justify-content:flex-start}
+.up input,.req input{font:400 12.5px var(--f-body);color:var(--ink);background:#0a0c13;border:1px solid var(--line);border-radius:8px;padding:8px;min-width:0;flex:1}
+.up-msg:empty{display:none}
+.eps{margin:0;padding:0;list-style:none;display:grid;gap:3px;font-size:12px;color:var(--muted)}
+.eps .uploaded,.eps .published{color:var(--ok)} .eps .in_production,.eps .proposed{color:var(--lamp)}
 
 @media (max-width:640px){
   .brand small{display:none}
@@ -193,6 +210,11 @@ const ROLES = {
   analista:     {name:"Analista",     color:0x5aa9e6, desc:"Junta métricas a 24 h, 7 días y 30 días y escribe lecciones en la memoria del canal."},
   retencion:    {name:"Retención",    color:0xe4572e, desc:"Editor de retención y engagement: gancho en el primer segundo, ritmo de cortes cada 2-3 s, loop en shorts, llamadas a la acción y la pregunta para comentarios."},
   animador:     {name:"Animador",     color:0xb7f21a, desc:"Solo hace animación: arma el storyboard de cada video con el Estudio Animador y Lumi, cuidando la coherencia (un mismo equipo, progresión síntoma→causa→medición→solución, valores que cuadran). El Director lo aprueba; tú lo ves en Acciones y puedes pedir que lo rehaga."},
+  empaque:      {name:"Empaque",      color:0xff4fa3, desc:"Estratega de empaque: antes de escribir, diseña 3 títulos + miniaturas (la promesa del video). El Director elige uno y todo el equipo trabaja para cumplirlo."},
+  showrunner:   {name:"Showrunner",   color:0xc77dff, desc:"Arma series de videos largos (temporadas por componente, curso de lavadoras), propone el siguiente capítulo, los mete a su playlist y hace Shorts tráiler que mandan al video completo. Las horas que cuentan para monetizar salen de los largos."},
+  calidad:      {name:"Calidad",      color:0xe9ecef, desc:"Guardián de calidad y originalidad: revisa datos técnicos, advertencias de seguridad y que el título cumpla lo que promete. Compara con los últimos 20 videos y bloquea los repetidos (YouTube no paga contenido hecho en serie)."},
+  humano:       {name:"Toque humano", color:0xffb703, desc:"Bandeja de César: te pide fotos de casos reales y notas de voz cortas, y las mete en los videos (foto 'Caso real' y tu voz después del gancho). Es lo que hace al canal imposible de copiar."},
+  monetizacion: {name:"Monetización", color:0x2dc653, desc:"Mete links de afiliado de las herramientas y refacciones de cada video (con aviso), manda a tu sitio y mide el avance: suscriptores, horas de videos largos y vistas de Shorts hacia los niveles para monetizar."},
   seo:          {name:"SEO",          color:0x2ec4b6, desc:"Estratega SEO: título con la búsqueda real al inicio, títulos alternos para probar, descripción, etiquetas, hashtags, capítulos y comentario fijado."},
 };
 // posiciones locales de escritorio (x,z) y hacia dónde mira el robot al trabajar
@@ -200,6 +222,7 @@ const DESKS = {
   analista:     [-5.6,-4.3], director:[0,-4.1], investigador:[-6.8,0.4],
   guionista:    [-3.6,4.2],  productor:[0.2,4.6], miniaturas:[4.0,4.2], publicador:[6.8,0.4],
   retencion:    [-3.6,-1.6], seo:[3.6,-1.6], animador:[0,0.9],
+  empaque:      [-2.9,-4.4], showrunner:[2.9,-4.4], calidad:[6.7,-2.4], humano:[-6.7,-2.4], monetizacion:[6.7,3.1],
 };
 const ROOMS = [
   {id:"lcmc",   name:"LCMC · Servir para Servir", ox:-9.4, tint:0xf2a65a, floor:0x4a3f52, rug:0x4a3326,
@@ -220,6 +243,11 @@ const CREW = {
     animador:     {nick:"Pixel",       vibe:"Artista soñador y perfeccionista con la coherencia visual.", quotes:["Un solo refri por video: ¡coherencia!","Lumi necesita otra expresión aquí.","Cada escena cuenta una parte de la historia."], hobbies:["pintura","arcade","guitarra"]},
     productor:    {nick:"Turbo",       vibe:"Trabajador incansable. Sueña en ffmpeg y presume renders a la primera.", quotes:["Renderizando… no me hablen.","720p y a la primera.","Voz, imágenes, música: ¡listo!"], hobbies:["arcade","pingpong","basquet"]},
     miniaturas:   {nick:"Frida",       vibe:"Diseñadora intensa con opiniones muy fuertes sobre el color lima.", quotes:["Más contraste, menos texto.","Tres palabras máximo en la miniatura.","Ese azul no dice nada."], hobbies:["pintura","plantas","yoga"]},
+    empaque:      {nick:"Lupe Clic",       vibe:"Obsesionada con el primer vistazo: si el título y la miniatura no prometen algo, no hay video.", quotes:["Primero la promesa, luego el guion.","¿Le darías clic tú?","Tres palabras en la miniatura, no más."], hobbies:["pintura","ajedrez","arcade"]},
+    showrunner:   {nick:"Don Capítulo",    vibe:"Piensa en temporadas: cada video es un capítulo que te deja con ganas del siguiente.", quotes:["Capítulo 3 en camino.","Las horas salen de los largos.","¡Y en el próximo episodio…!"], hobbies:["lectura","guitarra","ajedrez"]},
+    calidad:      {nick:"Inspector Tuerca", vibe:"Desconfiado por profesión. Revisa cada dato técnico dos veces y odia los videos clonados.", quotes:["¿Eso lo firmaría un técnico?","Falta la advertencia de seguridad.","Este se parece demasiado a otro."], hobbies:["ajedrez","lectura","yoga"]},
+    humano:       {nick:"Paco Real",       vibe:"El puente con César: junta casos reales, fotos y notas de voz para que el canal tenga alma.", quotes:["Lo real no se copia.","César, ¿me mandas una foto?","Tu voz vale más que cualquier IA."], hobbies:["guitarra","plantas","pingpong"]},
+    monetizacion: {nick:"Doña Lana",       vibe:"Contadora alegre: ve una herramienta mencionada y ya está pensando en el link.", quotes:["Cada link cuenta.","Vamos por los 500 suscriptores.","Horas de largos: ¡a sumar!"], hobbies:["yoga","lectura","plantas"]},
     publicador:   {nick:"Don Reloj",   vibe:"Puntual y metódico. No sube nada sin revisarlo dos veces.", quotes:["Tic-tac: todo a su hora.","Subido como privado, como debe ser.","Nunca en ráfaga."], hobbies:["plantas","yoga","siesta"]},
   },
   gaming: {
@@ -232,6 +260,11 @@ const CREW = {
     animador:     {nick:"Glitch",      vibe:"Caótico y creativo. En gaming casi no lo necesitan y aprovecha para jugar.", quotes:["Aquí los clips hablan solos.","¿Alguien quiere ver mi fan art?","Lag visual detectado… es broma."], hobbies:["arcade","pintura","siesta"]},
     productor:    {nick:"Clip",        vibe:"Editor veloz. Corta highlights en segundos.", quotes:["Recorte 9:16 listo.","Ese teamfight va completo.","Render en curso, no AFK."], hobbies:["arcade","pingpong","basquet"]},
     miniaturas:   {nick:"Skin",        vibe:"Obsesionado con los skins y los colores neón.", quotes:["Más neón.","Cara del héroe en grande.","El rojo vende."], hobbies:["pintura","arcade","plantas"]},
+    empaque:      {nick:"Hype",     vibe:"Vive del primer frame: si la miniatura no grita, no hay partida.", quotes:["Cara del héroe y resultado.","¿Clic o skip?","Promete la jugada, cumple la jugada."], hobbies:["arcade","pintura","basquet"]},
+    showrunner:   {nick:"Season",   vibe:"Planea temporadas de partidas comentadas.", quotes:["Temporada 1, episodio 2.","Partidas largas = horas.","Siguiente capítulo: remontada."], hobbies:["arcade","lectura","guitarra"]},
+    calidad:      {nick:"Árbitro",  vibe:"Estricto con los datos del juego y con los clips repetidos.", quotes:["Ese build está desactualizado.","Clip repetido: tarjeta amarilla.","Revisión VAR del título."], hobbies:["ajedrez","yoga","arcade"]},
+    humano:       {nick:"Replay",   vibe:"Le pide a César sus mejores partidas y reacciones reales.", quotes:["César, ¿grabaste algo hoy?","Tu reacción real vale oro.","Sin partidas no hay video."], hobbies:["guitarra","arcade","siesta"]},
+    monetizacion: {nick:"Loot",     vibe:"Cuenta el botín: suscriptores, horas y diamantes.", quotes:["Vamos por los 500.","Cada hora cuenta.","Loot asegurado."], hobbies:["arcade","yoga","plantas"]},
     publicador:   {nick:"Respawn",     vibe:"Calmado. Si algo falla, siempre vuelve a intentarlo.", quotes:["Subido. Respawn en 24 h.","Sin ráfagas, como manda el Comandante.","Programado y listo."], hobbies:["yoga","siesta","plantas"]},
   },
 };
@@ -891,14 +924,19 @@ function demoTick(dt){
     const R = d.R, title = R.seeds[d.k % R.seeds.length];
     const busy = Object.values(R.agents).reduce((n,a) => n + a.queue.length + (a.task?1:0), 0);
     if (busy > 3) continue;
-    switch (d.step % 8){
+    switch (d.step % 10){
       case 0: handoff(R,"investigador","director",`3 ideas nuevas, la mejor: ${title}`, {ack:"La reviso"}); break;
-      case 1: handoff(R,"director","guionista",`Aprobada: ${title}`, {ack:"Va"}); break;
+      case 1:
+        handoff(R,"director","empaque",`Aprobada: ${title}`, {ack:"Hago 3 empaques",
+          after: () => handoff(R,"empaque","director",`Empaque: «${title}» + «¡NO HAGAS ESTO!»`, {ack:"Me quedo con ese",
+            after: () => handoff(R,"director","guionista","Escribe para cumplir esa promesa", {ack:"Va"})})});
+        break;
       case 2:
         if (R.id === "gaming"){ handoff(R,"guionista","productor",`Guion listo: ${title}`, {ack:"A render"}); break; }
         handoff(R,"guionista","animador",`Guion listo: ${title}`, {ack:"Armo storyboard",
           after: () => handoff(R,"animador","director","Storyboard listo: refrigerador, 12 escenas", {ack:"Reviso coherencia",
-            after: () => handoff(R,"director","productor","Animación aprobada 8/10", {kind:"ok", ack:"A render"})})});
+            after: () => handoff(R,"director","calidad","Animación aprobada 8/10", {kind:"ok", ack:"Reviso todo",
+              after: () => handoff(R,"calidad","productor","Calidad 9/10 · originalidad 84/100", {kind:"ok", ack:"A render"})})})});
         break;
       case 3: handoff(R,"productor","miniaturas",`Video renderizado (${R.id==="gaming"?"3 highlights":"8 escenas"})`, {ack:"Hago 2"}); break;
       case 4: handoff(R,"miniaturas","director","2 miniaturas, recomiendo la A", {ack:"Elijo la A"}); break;
@@ -913,6 +951,15 @@ function demoTick(dt){
       case 7:
         if (R.id === "gaming" && Math.random() < .6){ R.agents.director.say("César: necesito partidas nuevas de Magic Chess", "ask", 5); feed(R,"Director pide material: partidas nuevas de Magic Chess"); R.agents.director.note("Pidió partidas nuevas"); }
         d.k++; break;
+      case 8:
+        if (R.id === "lcmc") handoff(R,"showrunner","director",`Capítulo ${2 + d.k % 6} de «Refrigeración por componente» listo para aprobar`, {ack:"Aprobado"});
+        else handoff(R,"humano","director","César subió 2 partidas nuevas", {kind:"ok", ack:"¡Por fin!"});
+        break;
+      case 9: {
+        const subs = 40 + d.k*7;
+        handoff(R,"monetizacion","director",`Suscriptores ${subs}/500 · 2 links de afiliado nuevos`, {kind:"ok", ack:"Sigue así"});
+        if (R.id === "lcmc" && Math.random() < .5) setTimeout(() => R.agents.humano.say("César, ¿me mandas una foto de un capacitor inflado?", "ask", 5), 2500);
+        break; }
     }
     d.step++;
   }
@@ -1098,10 +1145,143 @@ async function renderActions(){
       setTimeout(() => ev.target.disabled = false, 8000);
     };
     actList.append(box);
+    await renderOffice(R, box, base);
     if (R.id === "lcmc") await renderStoryboards(R, box, base);
   }
   if (actMsg.textContent === "Cargando estado…") actMsg.textContent = "";
 }
+/* ---------------- Puestos nuevos: monetización, bandeja de César, series, calidad ---------------- */
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function fmtN(n){ return n == null ? "?" : n >= 1e6 ? (n/1e6).toFixed(1).replace(/\.0$/,"") + " M" : n >= 1e4 ? Math.round(n/1e3) + " mil" : Math.round(n).toLocaleString("es-MX"); }
+function bar(label, val, goal){
+  const w = el("div","bar"); const pct = val == null ? 0 : Math.min(100, val / goal * 100);
+  const t = el("div","bar-t"); t.append(el("span", null, label), el("b", null, `${fmtN(val)} / ${fmtN(goal)}`));
+  const tr = el("div","bar-tr"); const f = el("i"); f.style.width = pct.toFixed(1) + "%"; tr.append(f);
+  w.append(t, tr); return w;
+}
+const MAX_UP = 700000;
+function blobToB64(blob){ return new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = ko; r.readAsDataURL(blob); }); }
+async function compressImage(file){
+  const img = await createImageBitmap(file);
+  const sc = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width*sc); c.height = Math.round(img.height*sc);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  for (const q of [0.82, 0.7, 0.55]){ const b = await new Promise(r => c.toBlob(r, "image/jpeg", q)); if (b.size <= MAX_UP) return b; }
+  throw new Error("La foto sigue muy pesada; intenta con otra.");
+}
+async function sendAsset(R, base, kind, blob, note, reqId, msgEl){
+  if (blob.size > MAX_UP) throw new Error(kind === "voice" ? "Nota muy larga: máximo ~60 segundos." : "Archivo muy pesado.");
+  msgEl.style.color = "var(--muted)"; msgEl.textContent = "Subiendo…";
+  const r = await fetch(`${base}/channels/${R.id}/human/assets`, {method:"POST", headers:{"x-token": api.token, "content-type":"application/json"},
+    body: JSON.stringify({kind, mime: blob.type || (kind === "photo" ? "image/jpeg" : "audio/webm"), b64: await blobToB64(blob), note, request_id: reqId || ""})});
+  if (!r.ok){ const t = await r.json().catch(() => ({})); throw new Error(t.detail || ("La API respondió " + r.status)); }
+  msgEl.style.color = "var(--ok)"; msgEl.textContent = "¡Recibido! Paco lo pondrá en el próximo video que encaje.";
+  R.agents.humano.say("¡Gracias, César! Ya lo tengo.", "ok", 4);
+}
+let recorder = null;
+function uploader(R, base, reqId, defaultNote){
+  const wrap = el("div","up");
+  const note = el("input"); note.type = "text"; note.placeholder = "¿De qué es? (p. ej. capacitor inflado de minisplit)"; note.value = defaultNote || "";
+  const msg = el("small","up-msg");
+  const file = el("input"); file.type = "file"; file.accept = "image/*"; file.hidden = true;
+  const afile = el("input"); afile.type = "file"; afile.accept = "audio/*"; afile.hidden = true;
+  const bPhoto = el("button","btn","📷 Foto"), bRec = el("button","btn","🎙️ Grabar voz"), bAud = el("button","btn","Subir audio");
+  [bPhoto,bRec,bAud].forEach(b => b.type = "button");
+  bPhoto.onclick = () => file.click(); bAud.onclick = () => afile.click();
+  file.onchange = async () => { const f = file.files[0]; if (!f) return;
+    try { await sendAsset(R, base, "photo", await compressImage(f), note.value.trim() || f.name, reqId, msg); } catch(e){ msg.style.color = "var(--bad)"; msg.textContent = e.message; } };
+  afile.onchange = async () => { const f = afile.files[0]; if (!f) return;
+    try { await sendAsset(R, base, "voice", f, note.value.trim() || f.name, reqId, msg); } catch(e){ msg.style.color = "var(--bad)"; msg.textContent = e.message; } };
+  bRec.onclick = async () => {
+    if (recorder && recorder.state === "recording"){ recorder.stop(); return; }
+    if (!navigator.mediaDevices || !window.MediaRecorder){ msg.style.color = "var(--bad)"; msg.textContent = "Este navegador no graba; usa 'Subir audio'."; return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      const chunks = []; recorder = new MediaRecorder(stream, {audioBitsPerSecond: 64000});
+      recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      const started = Date.now();
+      const tick = setInterval(() => { const s = Math.round((Date.now()-started)/1000); bRec.textContent = `⏹ Detener (${s}s)`; if (s >= 60) recorder.stop(); }, 500);
+      recorder.onstop = async () => {
+        clearInterval(tick); stream.getTracks().forEach(t => t.stop()); bRec.textContent = "🎙️ Grabar voz";
+        const blob = new Blob(chunks, {type: (recorder.mimeType || "audio/webm").split(";")[0]});
+        try { await sendAsset(R, base, "voice", blob, note.value.trim() || "Nota de voz", reqId, msg); } catch(e){ msg.style.color = "var(--bad)"; msg.textContent = e.message; }
+      };
+      recorder.start(); msg.style.color = "var(--warn)"; msg.textContent = "Grabando… habla como si le explicaras a un aprendiz (máx 60 s).";
+    } catch(e){ msg.style.color = "var(--bad)"; msg.textContent = "Sin acceso al micrófono: " + e.message; }
+  };
+  const row = el("div","row"); row.append(bPhoto, bRec, bAud);
+  wrap.append(note, row, msg, file, afile); return wrap;
+}
+const EP_ICON = {planned:"·", proposed:"✎", in_production:"⚙", uploaded:"⬆", published:"✓"};
+async function renderOffice(R, box, base){
+  let o; try { o = await getJSON(`/channels/${R.id}/office`); } catch(e){ return; }
+  const sec = (title, open) => { const d = el("details","sec"); d.open = !!open; d.append(el("summary", null, title)); box.append(d); return d; };
+  // 1) camino a monetizar
+  const p = o.progress, T = o.thresholds;
+  const d1 = sec("💰 Camino a monetizar", true);
+  if (!p) d1.append(el("small", null, "Aún sin datos: Doña Lana lo mide en el siguiente ciclo (con YouTube autorizado)."));
+  else {
+    d1.append(el("b","lvl", T.fan.label),
+      bar("Suscriptores", p.subs, T.fan.subs), bar("Horas de videos largos (12 meses)", p.long_hours_365, T.fan.hours),
+      el("small", null, `o bien ${fmtN(p.shorts_views_90)} / ${fmtN(T.fan.shorts)} vistas de Shorts en 90 días`),
+      el("b","lvl", T.ypp.label), bar("Suscriptores", p.subs, T.ypp.subs), bar("Horas de videos largos", p.long_hours_365, T.ypp.hours));
+    if (!T.new_rules) d1.append(el("small","warn", `Ojo: desde el 1 de febrero de 2027 el Programa de Socios pide ${fmtN(T.after_change.hours)} horas o ${fmtN(T.after_change.shorts)} vistas de Shorts. Solo cuentan videos públicos.`));
+    if (p.note) d1.append(el("small", null, p.note));
+  }
+  // 2) bandeja de César
+  if (R.id === "lcmc" || o.requests.length){
+    const d2 = sec(`🎙️ Bandeja de César · ${o.requests.length} pedido(s)`, o.requests.length > 0);
+    for (const rq of o.requests){
+      const c = el("div","req"); c.append(el("b", null, rq.text));
+      if (rq.for_title) c.append(el("small", null, "Para: " + rq.for_title));
+      if (rq.kind !== "video") c.append(uploader(R, base, rq.id, ""));
+      d2.append(c);
+    }
+    const free = el("div","req"); free.append(el("b", null, "Mandar algo sin pedido (una foto de un caso, un tip de voz)"), uploader(R, base, "", "")); d2.append(free);
+    const unused = o.assets.filter(a => !(a.used_in||[]).length).length;
+    d2.append(el("small", null, `${o.assets.length} material(es) recibidos · ${unused} esperando video`));
+  }
+  // 3) links de afiliado
+  if (R.id === "lcmc"){
+    const d3 = sec(`🔗 Links de afiliado · ${o.pending_products.length} pendiente(s) · ${o.links} guardado(s)`, o.pending_products.length > 0);
+    d3.append(el("small", null, "Genera el link del producto en tu portal de afiliados (Mercado Libre o Amazon) y pégalo aquí una sola vez: se reutiliza en todos los videos." + (o.amazon_tag ? " Amazon ya está configurado con tu etiqueta." : "")));
+    for (const pp of o.pending_products){
+      const c = el("div","req"); c.append(el("b", null, `${pp.product} · en ${pp.count} video(s)`), el("small", null, "Busca: " + pp.query));
+      const inp = el("input"); inp.type = "url"; inp.placeholder = "https://…"; const b = el("button","btn primary","Guardar"); b.type = "button";
+      const m = el("small","up-msg");
+      b.onclick = async () => {
+        try { const r = await fetch(`${base}/channels/${R.id}/money/links`, {method:"POST", headers:{"x-token": api.token, "content-type":"application/json"}, body: JSON.stringify({product: pp.product, url: inp.value.trim()})});
+          if (!r.ok){ const t = await r.json().catch(() => ({})); throw new Error(t.detail || r.status); }
+          m.style.color = "var(--ok)"; m.textContent = "Guardado"; R.agents.monetizacion.say("¡Link guardado! 💸", "ok", 3);
+        } catch(e){ m.style.color = "var(--bad)"; m.textContent = e.message; }
+      };
+      const row = el("div","row"); row.append(inp, b); c.append(row, m); d3.append(c);
+    }
+  }
+  // 4) series
+  if (o.series.length){
+    const d4 = sec("🎬 Series (Showrunner)");
+    for (const s of o.series){
+      const done = s.episodes.filter(e => ["uploaded","published"].includes(e.status)).length;
+      const c = el("div","req"); c.append(el("b", null, `${s.title} · ${done}/${s.episodes.length}`));
+      const ul = el("ul","eps"); for (const e of s.episodes){ ul.append(el("li", e.status, `${EP_ICON[e.status]||"·"} ${e.n}. ${e.title}`)); }
+      c.append(ul); d4.append(c);
+    }
+    d4.append(el("small", null, "✎ propuesto · ⚙ en producción · ⬆ subido · ✓ publicado"));
+  }
+  // 5) calidad
+  if (o.quality.length){
+    const d5 = sec("🔍 Revisiones de Calidad");
+    for (const q of o.quality){
+      const c = el("div","req");
+      const st = q.verdict === "bloqueado" ? "Bloqueado" : `Calidad ${q.score}/10 · originalidad ${q.originality}/100`;
+      c.append(el("b", null, q.title), el("small", q.verdict === "bloqueado" ? "bad" : null, st));
+      for (const it of [...(q.applied||[]), ...(q.issues||[])].slice(0,3)) c.append(el("small", null, "• " + it));
+      d5.append(c);
+    }
+  }
+}
+
 const SB_STATUS = {aprobado:["Aprobado por el Director","var(--ok)"], aprobado_con_notas:["Aprobado con notas","var(--lamp)"],
   aprobado_por_cesar:["Aprobado por ti","var(--ok)"], rehacer:["Se rehace en el próximo ciclo","var(--warn)"], pendiente:["Pendiente","var(--muted)"]};
 async function renderStoryboards(R, box, base){

@@ -39,6 +39,9 @@ class Idea(BaseModel):
     score: float = 0.0              # 0-10 asignado por Investigador
     source: str = "researcher"      # researcher | comments | analyst | manual
     source_media: Optional[str] = None   # gaming: archivo de partida
+    series_id: str = ""             # Showrunner: serie a la que pertenece
+    episode: int = 0
+    trailer_of: str = ""            # short tráiler: id del job largo al que manda
     created_at: datetime = Field(default_factory=now)
 
 
@@ -67,6 +70,11 @@ class Script(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     chapters: list[dict] = Field(default_factory=list)  # [{t, title}] (se calcula al producir)
     seo_notes: str = ""
+    # Gerente de monetización
+    products: list[dict] = Field(default_factory=list)   # [{name, query, url, kind}]
+    affiliate_block: str = ""
+    # Productor del toque humano
+    human: list[dict] = Field(default_factory=list)      # [{id, kind, note, use}]
 
 
 class VideoJob(BaseModel):
@@ -84,6 +92,8 @@ class VideoJob(BaseModel):
     error: Optional[str] = None
     comment_posted: bool = False
     director_notes: str = ""
+    package: dict = Field(default_factory=dict)   # Estratega de empaque: título + miniatura aprobados
+    qa: dict = Field(default_factory=dict)        # Guardián de calidad: veredicto y originalidad
     anim_notes: str = ""          # notas de César para rehacer la animación
     anim_redo: bool = False
     created_at: datetime = Field(default_factory=now)

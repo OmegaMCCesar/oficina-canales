@@ -246,3 +246,49 @@ def video_metrics(channel_id: str, video_id: str, window: str, title: str = "") 
         views=int(row[0]), likes=int(row[1]), comments=int(row[2]),
         avg_view_pct=float(row[3]), avg_view_seconds=float(row[4]), subs_gained=int(row[5]),
     )
+
+
+# ---------------- Series y monetización ----------------
+
+def add_to_playlist(channel_id: str, playlist_id: str, title: str, description: str, video_id: str) -> str:
+    """Agrega el video a la playlist de la serie (la crea pública si no existe). Devuelve el id."""
+    if settings().MODE == "dry":
+        return playlist_id or "dry_pl_" + hex(random.getrandbits(24))[2:]
+    yt = data_api(channel_id)
+    if not playlist_id:
+        pl = yt.playlists().insert(part="snippet,status", body={
+            "snippet": {"title": title[:150], "description": description[:4900], "defaultLanguage": "es"},
+            "status": {"privacyStatus": "public"}}).execute()
+        playlist_id = pl["id"]
+    yt.playlistItems().insert(part="snippet", body={"snippet": {
+        "playlistId": playlist_id, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute()
+    return playlist_id
+
+
+def channel_progress(channel_id: str) -> dict:
+    """Números para monetizar: suscriptores, horas de videos largos (365 días) y vistas de Shorts (90 días)."""
+    if settings().MODE == "dry":
+        return {"subs": random.randint(20, 400), "long_hours_365": round(random.uniform(10, 900), 1),
+                "shorts_views_90": random.randint(1000, 300000), "public_videos": random.randint(3, 40), "source": "dry"}
+    yt = data_api(channel_id)
+    st = yt.channels().list(part="statistics", mine=True).execute()["items"][0]["statistics"]
+    out = {"subs": int(st.get("subscriberCount", 0)), "public_videos": int(st.get("videoCount", 0)),
+           "long_hours_365": None, "shorts_views_90": None, "source": "youtube"}
+    an = analytics_api(channel_id)
+    end = datetime.utcnow().date()
+    try:
+        r = an.reports().query(ids="channel==MINE", startDate=str(end - timedelta(days=365)), endDate=str(end),
+                               metrics="estimatedMinutesWatched", dimensions="creatorContentType").execute()
+        rows = {row[0]: row[1] for row in r.get("rows", [])}
+        long_min = sum(v for k, v in rows.items() if str(k).upper() not in ("SHORTS",))
+        out["long_hours_365"] = round(long_min / 60, 1)
+        r2 = an.reports().query(ids="channel==MINE", startDate=str(end - timedelta(days=90)), endDate=str(end),
+                                metrics="views", dimensions="creatorContentType").execute()
+        out["shorts_views_90"] = int(sum(row[1] for row in r2.get("rows", []) if str(row[0]).upper() == "SHORTS"))
+    except Exception as e:   # si la dimensión no está disponible, al menos el total de minutos
+        log.info("progreso sin desglose por tipo (%s)", str(e)[:120])
+        r = an.reports().query(ids="channel==MINE", startDate=str(end - timedelta(days=365)), endDate=str(end),
+                               metrics="estimatedMinutesWatched").execute()
+        out["long_hours_365"] = round(((r.get("rows") or [[0]])[0][0]) / 60, 1)
+        out["note"] = "Horas totales (sin separar Shorts); YouTube cuenta solo las de videos largos"
+    return out

@@ -15,6 +15,7 @@ from ..db import save_job
 from ..llm import ask_json
 from ..models import Script, VideoJob
 from .base import channel_brief, insights_block
+from .packaging import brief
 
 log = logging.getLogger("writer")
 
@@ -75,6 +76,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         user = f"""{channel_brief(cfg)}
 {insights_block(cfg.id, 12)}
 IDEA: {idea.title} — {idea.angle}
+{brief(job)}
 FORMATO: {idea.format} (short máx {cfg.production.short_max_seconds}s)
 Analiza el video adjunto."""
         fallback = GameplayOut(
@@ -91,6 +93,7 @@ Analiza el video adjunto."""
 {insights_block(cfg.id, 12)}
 ESTILO VISUAL: {cfg.production.image_style}
 IDEA: {idea.title} — {idea.angle}
+{brief(job)}
 FORMATO: {idea.format}"""
         fallback = ScriptOut(
             title=idea.title[:70], hook=f"¿{idea.title}? Esto es lo primero que revisas.",
@@ -103,6 +106,8 @@ FORMATO: {idea.format}"""
         job.script = Script(title=out.title, hook=out.hook, body=" ".join(s.text for s in out.scenes),
                             cta=out.cta, description=out.description, tags=out.tags,
                             scenes=[s.model_dump() for s in out.scenes])
+    if job.package.get("title"):
+        job.script.title = job.package["title"][:100]   # el empaque aprobado manda
     job.status = "scripted"
     save_job(job)
     log.info("[%s] guion listo: %s", cfg.id, job.script.title)
