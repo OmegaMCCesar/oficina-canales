@@ -87,6 +87,12 @@ def decisions(channel_id: str):
     return store().list(channel_id, "decisions", limit=20)
 
 
+@app.get("/channels/{channel_id}/activity", dependencies=[Depends(auth)])
+def get_activity(channel_id: str, since: str = ""):
+    from .db import activity
+    return activity(channel_id, since)
+
+
 @app.get("/channels/{channel_id}/runs", dependencies=[Depends(auth)])
 def runs(channel_id: str):
     docs = store().list(channel_id, "runs", limit=200)

@@ -590,12 +590,7 @@ async function pollRoom(R){
     const was = prev[j.id]; prev[j.id] = j.status;
     if (first || was === j.status) continue;
     const title = (j.title || "").slice(0,48);
-    if (STAGE[j.status]){ const [a,b,m] = STAGE[j.status]; handoff(R,a,b,`${m}: ${title}`, {ack:"Recibido"}); }
-    else if (j.status === "scheduled"){
-      const when = j.scheduled_for ? new Date(j.scheduled_for).toLocaleString("es-MX",{weekday:"short", hour:"2-digit", minute:"2-digit"}) : "";
-      handoff(R,"director","publicador",`Programar: ${title}`, {after: () => handoff(R,"publicador","portal",`Programado ${when}`, {kind:"ok"})});
-    }
-    else if (j.status === "published"){ R.agents.analista.say(`Publicado: ${title}`, "ok"); feed(R, `Publicado: ${title}`); }
+    if (j.status === "published"){ R.agents.analista.say(`Publicado: ${title}`, "ok"); feed(R, `Publicado: ${title}`); }
     else if (j.status === "failed"){ R.agents.director.say(`Falló: ${title}`, "bad", 6); feed(R, `Falló: ${title} (${j.error || "sin detalle"})`); R.agents.director.note(`Falló ${title}`); }
     else if (j.status === "rejected"){ R.agents.director.note(`Rechazó ${title}`); }
   }
@@ -621,7 +616,7 @@ async function pollRoom(R){
   const seenIns = live.insights[R.id] || new Set();
   for (const i of ins){
     if (seenIns.has(i.id)) continue; seenIns.add(i.id);
-    if (!first) handoff(R,"analista","director",`Aprendí: ${i.statement}`, {ack:"Anotado", kind:"ok"});
+
   }
   live.insights[R.id] = seenIns;
   const lastDec = dec[0];
@@ -652,15 +647,38 @@ async function poll(){
   try {
     await Promise.all(ROOMS.map(pollRoom));
     live.last = Date.now(); setStatus("live","En vivo");
-  } catch(e){ setStatus("err", "Sin conexión: " + e.message); }
+  } catch(e){
+    setStatus("err", document.hidden ? "En pausa (página oculta)" : "Reconectando… el servidor puede estar despertando");
+  }
+}
+/* Actividad en vivo: cada agente avisa cuando empieza y entrega su trabajo */
+live.since = {}; live.actTimer = null;
+async function pollActivity(){
+  for (const R of ROOMS){
+    let evs = [];
+    const since = live.since[R.id];
+    try { evs = await getJSON(`/channels/${R.id}/activity?since=${encodeURIComponent(since || "")}`); } catch(e){ continue; }
+    if (since === undefined){ live.since[R.id] = evs.length ? evs[evs.length-1].t : ""; continue; }  // no repetir historial
+    for (const ev of evs){
+      live.since[R.id] = ev.t;
+      const A = R.agents[ev.agent]; if (!A) continue;
+      if (ev.to && (ev.to === "portal" || R.agents[ev.to])){
+        handoff(R, ev.agent, ev.to, ev.msg, {kind: ev.kind, ack: ev.to === "portal" ? null : "Recibido"});
+      } else {
+        A.say(ev.msg, ev.kind || "info", 6); A.note(ev.msg); feed(R, `${ROLES[ev.agent].name}: ${ev.msg}`);
+        A.busyUntil = performance.now()/1000 + 30;
+      }
+    }
+  }
 }
 function startLive(){
+  clearInterval(live.actTimer); live.since = {}; pollActivity(); live.actTimer = setInterval(pollActivity, 4000);
   document.getElementById("open-actions").hidden = false;
   mode = "live"; clearInterval(live.timer);
   live.prev = {}; live.insights = {}; live.first = {}; live.req = {};
   setStatus("demo","Conectando…"); poll(); live.timer = setInterval(poll, 20000);
 }
-function startDemo(){ document.getElementById("open-actions").hidden = true; mode = "demo"; clearInterval(live.timer); setStatus("demo","Demo"); }
+function startDemo(){ document.getElementById("open-actions").hidden = true; mode = "demo"; clearInterval(live.actTimer); clearInterval(live.timer); setStatus("demo","Demo"); }
 
 const modal = document.getElementById("connect");
 const urlIn = document.getElementById("api-url"), tokIn = document.getElementById("api-token"), errEl = document.getElementById("connect-err");
@@ -681,6 +699,10 @@ document.getElementById("connect-form").addEventListener("submit", async (e) => 
   } catch(err){ errEl.textContent = "No pude llegar a la API (" + err.message + "). Revisa la URL y que el servicio esté encendido."; }
 });
 if (api.url && api.token) startLive();
+// Al volver a la página (cel), reconectar y ponerse al día de inmediato
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && mode === "live"){ setStatus("demo","Reconectando…"); poll(); pollActivity(); }
+});
 
 /* ---------------- Acciones (autorizar YouTube, correr ciclo) ---------------- */
 const actModal = document.getElementById("actions"), actList = document.getElementById("actions-list"), actMsg = document.getElementById("actions-msg");

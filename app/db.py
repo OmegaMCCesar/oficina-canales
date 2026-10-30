@@ -180,3 +180,33 @@ def save_secret(channel_id: str, name: str, value: dict) -> None:
 
 def get_secret(channel_id: str, name: str) -> dict | None:
     return store().get(channel_id, "secrets", name)
+
+
+# ---------- actividad en vivo (lo que el panel anima) ----------
+
+def add_activity(channel_id: str, agent: str, msg: str, to: str | None = None, kind: str = "info") -> None:
+    """agent/to: director|investigador|guionista|productor|miniaturas|publicador|analista|portal"""
+    import time
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
+    doc = {"t": now.isoformat(), "agent": agent, "to": to, "msg": msg[:180], "kind": kind}
+    try:
+        store().put(channel_id, "activity", f"{time.time_ns()}", doc)
+    except Exception:
+        pass  # la actividad es cosmética: nunca debe tumbar el ciclo
+
+
+def activity(channel_id: str, since: str = "", limit: int = 60) -> list[dict]:
+    st = store()
+    if isinstance(st, _FirestoreStore):
+        from firebase_admin import firestore as fs
+        q = st._coll(channel_id, "activity")
+        if since:
+            q = q.where("t", ">", since)
+        docs = [d.to_dict() for d in q.order_by("t", direction=fs.Query.DESCENDING).limit(limit).stream()]
+        docs.sort(key=lambda d: d.get("t", ""))
+        return docs
+    docs = st.list(channel_id, "activity", limit=10000)
+    docs = [d for d in docs if d.get("t", "") > since]
+    docs.sort(key=lambda d: d.get("t", ""))
+    return docs[-limit:]
