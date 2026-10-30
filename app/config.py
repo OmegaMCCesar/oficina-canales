@@ -66,6 +66,14 @@ class Production(BaseModel):
     long_target_minutes: int = 6
     image_style: str = ""
     character: str = ""
+    voice_gender: str = "male"                 # edge-tts: male=es-MX-JorgeNeural, female=es-MX-DaliaNeural
+    voice_rate: str = "+8%"
+    visual_sources: list[str] = Field(default_factory=lambda: ["pexels", "pixabay", "flux", "gemini"])
+    prefer_stock_video: bool = True            # movimiento real > imagen fija
+    music_mood: str = "calm"                   # calm | energetic
+    brand_name: str = ""                       # banner de intro y tarjeta final
+    watermark: str = ""                        # @handle en esquina
+    accent_ass: str = "&H0044D7FF&"            # color de resaltado (ASS &HAABBGGRR&)
 
 
 class ChannelConfig(BaseModel):

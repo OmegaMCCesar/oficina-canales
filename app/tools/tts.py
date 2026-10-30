@@ -66,6 +66,8 @@ def synthesize(text: str, out_path: Path, voice: str = DEFAULT_VOICE, language: 
             break
         except Exception as e:  # límite del nivel gratuito o forma de config no aceptada
             last_err = e
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "quota" in str(e).lower():
+                raise  # sin cuota gratuita: que el router pase al siguiente proveedor
             log.warning("TTS falló (%s); reintento", str(e)[:200])
             time.sleep(10 * (attempt + 1))
     if data is None:

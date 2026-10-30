@@ -17,7 +17,8 @@ log = logging.getLogger("publisher")
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     assert job.script and job.video_path and job.scheduled_for
     is_short = job.idea.format == "short"
-    desc = job.script.description
+    from .seo import build_description
+    desc = build_description(job)
     if is_short and "#Shorts" not in desc:
         desc += "\n#Shorts"
     try:
@@ -27,6 +28,8 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         )
         job.youtube_video_id = vid
         job.status = "scheduled"
+        if job.script.pinned_comment:
+            youtube.post_comment(cfg.id, vid, job.script.pinned_comment)
         log.info("[%s] programado %s -> %s @ %s", cfg.id, job.script.title, vid, job.scheduled_for)
     except Exception as e:
         job.status = "failed"

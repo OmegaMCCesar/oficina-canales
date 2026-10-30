@@ -16,7 +16,7 @@ import logging
 import traceback
 
 from . import producers
-from .agents import analyst, director, publisher, researcher, thumbnails, writer
+from .agents import analyst, director, publisher, researcher, retention, seo, thumbnails, writer
 from .config import get_channel, load_channels
 from .db import add_activity as act, jobs, log_run, save_job
 
@@ -134,7 +134,14 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
             act(cfg.id, "guionista", f"Escribiendo guion: {title}")
             job = _step(job, writer.run, cfg)
             if job.status == "scripted":
-                act(cfg.id, "guionista", f"Guion listo ({len(job.script.scenes or job.script.highlights)} partes)", to="productor")
+                act(cfg.id, "guionista", f"Guion listo ({len(job.script.scenes or job.script.highlights)} partes)", to="retencion")
+                act(cfg.id, "retencion", "Afinando gancho de 1 s, ritmo, loop y llamadas a la acción…")
+                job = retention.run(cfg, job)
+                hook = job.script.hook_text or job.script.hook
+                act(cfg.id, "retencion", f"Gancho: «{hook[:50]}» · {len(job.script.scenes or job.script.highlights)} cortes", to="seo")
+                act(cfg.id, "seo", "Optimizando título, descripción, etiquetas y hashtags…")
+                job = seo.run(cfg, job)
+                act(cfg.id, "seo", f"Título: {job.script.title[:60]}", to="productor")
         if job.status == "scripted":
             act(cfg.id, "productor", f"Generando imágenes, voz y video: {title}")
             job = _step(job, producers.run, cfg)

@@ -16,6 +16,12 @@ cadence:
   max_queue_ready: 10
 
 production:
+  voice_gender: male          # Edge TTS es-MX-JorgeNeural (gratis)
+  music_mood: calm
+  brand_name: "LCMC · Servir para Servir"
+  watermark: "@LCMC-ServirParaServir"
+  visual_sources: [pexels, pixabay, flux, gemini]   # orden de fuentes de imagen
+  prefer_stock_video: true    # clips reales de Pexels/Pixabay antes que imagen fija
   kind: generated
   voice: es-US-Neural2-B
   language: es-MX

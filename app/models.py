@@ -52,6 +52,21 @@ class Script(BaseModel):
     tags: list[str] = Field(default_factory=list)
     # gaming
     highlights: list[dict] = Field(default_factory=list)  # [{start, end, caption}]
+    # Editor de Retención
+    hook_text: str = ""             # texto grande en pantalla los primeros 2-3 s
+    cta_mid: str = ""               # CTA a mitad (largos)
+    cta_end: str = ""               # CTA final hablado + en pantalla
+    comment_question: str = ""      # pregunta para provocar comentarios
+    loop_line: str = ""             # shorts: frase final que conecta con el inicio
+    retention_notes: str = ""
+    # Estratega SEO
+    alt_titles: list[str] = Field(default_factory=list)
+    hashtags: list[str] = Field(default_factory=list)
+    pinned_comment: str = ""
+    playlist: str = ""
+    keywords: list[str] = Field(default_factory=list)
+    chapters: list[dict] = Field(default_factory=list)  # [{t, title}] (se calcula al producir)
+    seo_notes: str = ""
 
 
 class VideoJob(BaseModel):

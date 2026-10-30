@@ -57,7 +57,7 @@ Reglas:
 - visual_prompt: describe UNA imagen simple y concreta para esa escena (sin texto en la imagen),
   siguiendo el estilo visual del canal.
 - Cierra con CTA de una frase (seguir / comentar su caso).
-- Shorts: 6-9 escenas, total < 55 segundos narrados (~130 palabras).
+- Shorts: 8-14 escenas de una frase, total 25-50 segundos narrados (70-120 palabras).
 - Largos: 18-30 escenas, 5-7 minutos (~900 palabras).
 - Título: ≤ 70 caracteres, con la palabra clave al inicio. Descripción con 3 líneas útiles.
 - Si se abre un equipo o se manipula gas, incluye la advertencia de seguridad en el guion."""

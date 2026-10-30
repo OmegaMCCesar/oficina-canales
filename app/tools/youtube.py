@@ -19,6 +19,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
+    "https://www.googleapis.com/auth/youtube.force-ssl",   # leer comentarios y publicar el comentario del canal
 ]
 
 
@@ -152,6 +153,17 @@ def upload_video(channel_id: str, video_path: str, title: str, description: str,
         except Exception as e:  # cuenta sin verificar no puede poner miniatura
             log.warning("thumbnail falló: %s", e)
     return vid
+
+
+def post_comment(channel_id: str, video_id: str, text: str) -> None:
+    """Comentario del propio canal en su video (fíjalo a mano en Studio: la API no permite fijar)."""
+    if settings().MODE == "dry":
+        return
+    try:
+        data_api(channel_id).commentThreads().insert(part="snippet", body={"snippet": {
+            "videoId": video_id, "topLevelComment": {"snippet": {"textOriginal": text[:900]}}}}).execute()
+    except Exception as e:  # video privado o sin permiso force-ssl: no es crítico
+        log.info("comentario no publicado (%s)", str(e)[:120])
 
 
 # ---------------- Leer ----------------

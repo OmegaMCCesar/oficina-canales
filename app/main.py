@@ -89,6 +89,15 @@ def decisions(channel_id: str):
     return store().list(channel_id, "decisions", limit=20)
 
 
+@app.get("/providers", dependencies=[Depends(auth)])
+def providers_status():
+    """Qué proveedores de IA tienen llave y cómo les ha ido (usos, fallas)."""
+    from .providers import health, key
+    keys = ["GEMINI_API_KEY", "GROQ_API_KEY", "CEREBRAS_API_KEY", "OPENROUTER_API_KEY", "GITHUB_MODELS_TOKEN",
+            "MISTRAL_API_KEY", "CLOUDFLARE_API_TOKEN", "PEXELS_API_KEY", "PIXABAY_API_KEY"]
+    return {"configurados": {k: bool(key(k)) for k in keys}, "voz_gratis": "edge-tts (sin llave)", **health.report()}
+
+
 @app.get("/channels/{channel_id}/activity", dependencies=[Depends(auth)])
 def get_activity(channel_id: str, since: str = ""):
     from .db import activity
