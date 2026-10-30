@@ -73,6 +73,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
 .agent .sw{width:30px;height:30px;border-radius:8px;flex:none;box-shadow:inset 0 -6px 0 rgba(0,0,0,.25)}
 .agent .name{font:700 18px var(--f-display);margin:0}
 .agent .room{font:400 12px var(--f-mono);color:var(--muted)}
+.agent .vibe{font-style:italic;color:var(--lamp)}
 .agent p{margin:0;font-size:13px;line-height:1.5;color:var(--ink)}
 .agent dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px}
 .agent dt{color:var(--muted)} .agent dd{margin:0;min-width:0;overflow-wrap:anywhere}
@@ -102,7 +103,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
 .sb img{width:100%;border-radius:6px;cursor:zoom-in;background:#05060a;min-height:60px}
 .sb b{font:600 13px var(--f-display)} .sb ul{margin:0;padding-left:18px;font-size:12px;color:var(--muted)}
 .sb textarea{font:400 12.5px var(--f-mono);color:var(--ink);background:#0d0f17;border:1px solid var(--line);border-radius:8px;padding:8px;min-height:54px;resize:vertical}
-.tag{font:600 11px var(--f-mono);padding:2px 7px;border-radius:99px;border:1px solid currentColor}
+.sbtag{font:600 11px var(--f-mono);padding:2px 7px;border-radius:99px;border:1px solid currentColor}
 a.btn{text-decoration:none;display:inline-block}
 
 @media (max-width:640px){
@@ -139,8 +140,9 @@ a.btn{text-decoration:none;display:inline-block}
   <header><h2>Agente</h2><button type="button" class="linkbtn" id="agent-close">Cerrar</button></header>
   <div class="body">
     <div class="who"><div class="sw" id="a-sw"></div><div><p class="name" id="a-name"></p><span class="room" id="a-room"></span></div></div>
+    <p id="a-vibe" class="vibe"></p>
     <p id="a-desc"></p>
-    <dl><dt>Ahora</dt><dd id="a-state"></dd><dt>Bandeja</dt><dd id="a-inbox"></dd></dl>
+    <dl><dt>Ahora</dt><dd id="a-state"></dd><dt>Le gusta</dt><dd id="a-likes"></dd><dt>Bandeja</dt><dd id="a-inbox"></dd></dl>
     <div><h2 style="margin-bottom:6px">Últimos movimientos</h2><ul id="a-log"></ul></div>
   </div>
 </aside>
@@ -206,6 +208,53 @@ const ROOMS = [
    seeds:["Escape de gank en jungla","Compo de magos en Magic Chess","Outplay 1v3 con asesino","Héroe del parche","Savage con tirador","Remontada en Magic Chess"]},
 ];
 
+/* ---------------- Tripulación: nombres, personalidad y pasatiempos ---------------- */
+const CREW = {
+  lcmc: {
+    director:     {nick:"Don Chema",   vibe:"Sereno y exigente. Cuida la cadencia del canal como si fuera su jardín.", quotes:["Calidad antes que cantidad.","Nada de ráfagas: un video a la vez.","¿Eso lo pidió la audiencia o se nos ocurrió a nosotros?"], hobbies:["ajedrez","lectura","plantas"]},
+    analista:     {nick:"Grafi",       vibe:"Callada y analítica. Cree en los números y desconfía de las corazonadas.", quotes:["Los datos no mienten, pero hay que preguntarles bien.","Retención arriba de 50%: ¡fiesta!","Ojo con el segundo 3."], hobbies:["ajedrez","yoga","lectura"]},
+    investigador: {nick:"Nacho Lupa",  vibe:"Curioso y un poco chismoso. Lee todos los comentarios y huele los temas antes que nadie.", quotes:["Encontré algo jugoso en los comentarios…","Esta pregunta se repite: ¡ahí hay video!","¿Ya vieron lo que busca la gente hoy?"], hobbies:["lectura","arcade","pingpong"]},
+    guionista:    {nick:"Cervantito",  vibe:"Poeta frustrado convertido en guionista técnico. Ama un buen gancho.", quotes:["En un lugar de la cocina, de cuyo refri no quiero acordarme…","Menos palabras, más claridad.","Todo buen guion empieza con un problema."], hobbies:["guitarra","lectura","siesta"]},
+    retencion:    {nick:"Chispa",      vibe:"Hiperactiva e impaciente. Odia los primeros 3 segundos aburridos.", quotes:["¡Al grano!","Si no engancha en 1 segundo, no sirve.","¡Corte, corte, corte!"], hobbies:["basquet","pingpong","arcade"]},
+    seo:          {nick:"Keyla",       vibe:"Nerd de las palabras clave. Habla en hashtags sin darse cuenta.", quotes:["#ElTítuloEsTodo","La búsqueda va primero en el título.","¿Cómo lo buscaría tu tía?"], hobbies:["ajedrez","arcade","lectura"]},
+    animador:     {nick:"Pixel",       vibe:"Artista soñador y perfeccionista con la coherencia visual.", quotes:["Un solo refri por video: ¡coherencia!","Lumi necesita otra expresión aquí.","Cada escena cuenta una parte de la historia."], hobbies:["pintura","arcade","guitarra"]},
+    productor:    {nick:"Turbo",       vibe:"Trabajador incansable. Sueña en ffmpeg y presume renders a la primera.", quotes:["Renderizando… no me hablen.","720p y a la primera.","Voz, imágenes, música: ¡listo!"], hobbies:["arcade","pingpong","basquet"]},
+    miniaturas:   {nick:"Frida",       vibe:"Diseñadora intensa con opiniones muy fuertes sobre el color lima.", quotes:["Más contraste, menos texto.","Tres palabras máximo en la miniatura.","Ese azul no dice nada."], hobbies:["pintura","plantas","yoga"]},
+    publicador:   {nick:"Don Reloj",   vibe:"Puntual y metódico. No sube nada sin revisarlo dos veces.", quotes:["Tic-tac: todo a su hora.","Subido como privado, como debe ser.","Nunca en ráfaga."], hobbies:["plantas","yoga","siesta"]},
+  },
+  gaming: {
+    director:     {nick:"Comandante Rex", vibe:"Líder de squad. Piensa en el canal por temporadas, no por partidas.", quotes:["Calidad > spam de clips.","Necesitamos partidas nuevas, César.","Push lento, pero seguro."], hobbies:["ajedrez","arcade","lectura"]},
+    analista:     {nick:"KDA",         vibe:"Fría y precisa. Mide todo en ratios, hasta el café.", quotes:["Ese clip tuvo un KDA de retención perfecto.","Los números no hacen feed.","GG si pasa del 50%."], hobbies:["ajedrez","yoga","arcade"]},
+    investigador: {nick:"Scout",       vibe:"Explorador del meta. Siempre sabe qué héroe está roto esta semana.", quotes:["El meta cambió otra vez.","¡Este héroe está en tendencia!","Puse ward en los comentarios: hay ideas."], hobbies:["arcade","lectura","pingpong"]},
+    guionista:    {nick:"Lore",        vibe:"Narrador épico. Convierte cada partida en una saga.", quotes:["Esta remontada merece una epopeya.","Inicio, conflicto, Savage.","Toda partida cuenta una historia."], hobbies:["guitarra","lectura","arcade"]},
+    retencion:    {nick:"Combo",       vibe:"Rápido como asesino en jungla. Cero paciencia para intros lentas.", quotes:["¡Gancho en el primer frame!","Corte, corte, Maniac.","Nada de intros lentas."], hobbies:["basquet","arcade","pingpong"]},
+    seo:          {nick:"Meta",        vibe:"Estratega del ranking. Optimiza hasta su desayuno.", quotes:["#MLBB al final, no al inicio.","El héroe en el título, siempre.","Mythic en búsquedas."], hobbies:["ajedrez","arcade","lectura"]},
+    animador:     {nick:"Glitch",      vibe:"Caótico y creativo. En gaming casi no lo necesitan y aprovecha para jugar.", quotes:["Aquí los clips hablan solos.","¿Alguien quiere ver mi fan art?","Lag visual detectado… es broma."], hobbies:["arcade","pintura","siesta"]},
+    productor:    {nick:"Clip",        vibe:"Editor veloz. Corta highlights en segundos.", quotes:["Recorte 9:16 listo.","Ese teamfight va completo.","Render en curso, no AFK."], hobbies:["arcade","pingpong","basquet"]},
+    miniaturas:   {nick:"Skin",        vibe:"Obsesionado con los skins y los colores neón.", quotes:["Más neón.","Cara del héroe en grande.","El rojo vende."], hobbies:["pintura","arcade","plantas"]},
+    publicador:   {nick:"Respawn",     vibe:"Calmado. Si algo falla, siempre vuelve a intentarlo.", quotes:["Subido. Respawn en 24 h.","Sin ráfagas, como manda el Comandante.","Programado y listo."], hobbies:["yoga","siesta","plantas"]},
+  },
+};
+const HOBBIES = {
+  pingpong: {label:"Ping-pong",      doing:"Jugando ping-pong",    lines:["¡Punto!","¡Smash!","¡Saque!","¡Uy, en la red!"]},
+  arcade:   {label:"Maquinita",      doing:"Jugando en la maquinita", lines:["¡Nuevo récord!","Un nivel más…","Game over… ¡otra!","¡Savage!"]},
+  ajedrez:  {label:"Ajedrez",        doing:"Jugando ajedrez",      lines:["Jaque.","Mmm… déjame pensar.","Buena jugada.","¡Jaque mate!"]},
+  guitarra: {label:"Guitarra",       doing:"Tocando la guitarra",  lines:["♪ ♫ ♪","Un acorde más…","Esta va para Lumi ♪","Do, sol, la menor…"]},
+  lectura:  {label:"Lectura",        doing:"Leyendo en el sillón", lines:["Qué buen capítulo…","Shh, estoy leyendo.","Este libro explica el ciclo de refrigeración mejor que yo.","Una página más y vuelvo."]},
+  siesta:   {label:"Siesta",         doing:"Tomando una siesta",   lines:["Zzz…","Cinco minutitos…","Zzz… render… Zzz"]},
+  plantas:  {label:"Jardinería",     doing:"Regando las plantas",  lines:["Crece, crece.","Agüita para ti.","Esta ya floreó.","Las plantas también tienen retención."]},
+  basquet:  {label:"Básquet",        doing:"Tirando a la canasta", lines:["¡Enceste!","Tiro de tres…","¡Fallé! Otra vez.","¡Swish!"]},
+  yoga:     {label:"Yoga",           doing:"Haciendo yoga",        lines:["Respira…","Postura del árbol.","Estirando los servos.","Paz interior, cero bugs."]},
+  pintura:  {label:"Pintura",        doing:"Pintando un cuadro",   lines:["Un retrato de Lumi…","Más lima aquí.","Obra maestra en proceso.","El arte no se renderiza, se siente."]},
+  cafe:     {label:"Café",           doing:"Tomando café",         lines:["Café ☕","Un cafecito y sigo.","¿Alguien más quiere?"]},
+};
+const PETS = {lcmc:{name:"Tornillo", color:0xf2a65a, sound:"¡Miau-bip!"}, gaming:{name:"Bit", color:0x8b7cf6, sound:"¡Guau-bip!"}};
+function crew(R, role){ return (CREW[R.id] || {})[role] || {nick:ROLES[role].name, vibe:"", quotes:[], hobbies:["cafe"]}; }
+function nick(R, role){ return role === "portal" ? "Publicación" : crew(R, role).nick; }
+function who(R, role){ return role === "portal" ? "Publicación" : `${nick(R, role)} (${ROLES[role].name})`; }
+const anyOf = (arr) => arr[Math.floor(Math.random()*arr.length)];
+const faceTo = (x, z, tx, tz) => Math.atan2(tx - x, tz - z);
+
 /* ---------------- Escena ---------------- */
 const host = document.getElementById("scene");
 const renderer = new THREE.WebGLRenderer({antialias:true});
@@ -219,7 +268,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x11131d);
 
 const camera = new THREE.OrthographicCamera(-1,1,1,-1,0.1,300);
-const view = {az:Math.PI/4, el:0.95, target:new THREE.Vector3(0,0,0), size:30, goalTarget:new THREE.Vector3(0,0,0), goalSize:30};
+const view = {az:Math.PI/4, el:0.95, target:new THREE.Vector3(0,0,2.6), size:34, goalTarget:new THREE.Vector3(0,0,2.6), goalSize:34};
 
 scene.add(new THREE.HemisphereLight(0xb8c6ff, 0x2a2030, 0.95));
 const sun = new THREE.DirectionalLight(0xffe2b8, 1.15);
@@ -360,6 +409,8 @@ function buildRoom(R){
     const a = new Agent(role, R, stand, desk.rotation.y + Math.PI, screenMat);
     R.agents[role] = a;
   }
+  buildLounge(R);
+  R.pet = new Pet(R);
 }
 function drawChart(R){
   const {canvas, tex, values, label} = R.chart; const g = canvas.getContext("2d");
@@ -405,9 +456,57 @@ class Agent {
     this.carry = box(.36,.06,.28,M(0xfaf7ef),0,.98,.42,root); this.carry.visible = false;
     root.traverse(o => { if (o.isMesh){ o.castShadow = true; o.userData.agent = this; pickables.push(o); } });
     // etiqueta con nombre
-    this.badge = spriteFrom(textCanvas([ROLES[role].name],{font:"600 30px 'IBM Plex Sans', sans-serif", bg:"rgba(17,19,29,.82)", fg:"#"+new THREE.Color(color).getHexString(), pad:12, radius:14}),0.32);
+    this.badge = spriteFrom(textCanvas([`${crew(room, role).nick} · ${ROLES[role].name}`],{font:"600 28px 'IBM Plex Sans', sans-serif", bg:"rgba(17,19,29,.82)", fg:"#"+new THREE.Color(color).getHexString(), pad:12, radius:14}),0.3);
     this.badge.position.set(0,2.2,0); root.add(this.badge);
     this.bubble = null; this.bubbleT = 0;
+    this.hobby = null; this.chatIn = 20 + Math.random()*40; this.wanderIn = 6 + Math.random()*25;
+    // objetos de mano para los pasatiempos
+    const hand = this.arms[1], P = this.props = {};
+    const mk = (parent, build) => { const gr = new THREE.Group(); build(gr); gr.visible = false; parent.add(gr); return gr; };
+    P.paddle = mk(hand, gr => { box(.04,.14,.04,M(0x3a2a22),0,-.5,0,gr); const d = new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.025,14), M(0xd94a4a)); d.rotation.x = Math.PI/2; d.position.set(0,-.66,.02); gr.add(d); });
+    P.can = mk(hand, gr => { box(.2,.17,.13,M(0x3f8f5a),0,-.52,.06,gr); const sp = new THREE.Mesh(new THREE.CylinderGeometry(.015,.02,.22,6), M(0x3f8f5a)); sp.rotation.x = 1.0; sp.position.set(0,-.5,.24); gr.add(sp); });
+    P.brush = mk(hand, gr => { const b = new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.32,6), M(0x8a5a3c)); b.position.set(0,-.55,.1); b.rotation.x = 1.2; gr.add(b); const tip = new THREE.Mesh(new THREE.SphereGeometry(.03,6,5), M(color)); tip.position.set(0,-.62,.26); gr.add(tip); });
+    P.mug = mk(hand, gr => { const m = new THREE.Mesh(new THREE.CylinderGeometry(.06,.05,.11,12), M(0xf6f3ec)); m.position.set(0,-.5,.05); gr.add(m); });
+    P.book = mk(root, gr => { const b = box(.36,.05,.27,M(color,{roughness:.8}),0,1.0,.42,gr); b.rotation.x = -0.9; const pg = box(.33,.052,.24,M(0xf6f3ec),0,1.0,.43,gr); pg.rotation.x = -0.9; });
+    P.guitar = mk(root, gr => { const b = new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,.08,16), M(0xc4772e,{roughness:.5})); b.rotation.x = Math.PI/2; b.position.set(.12,.82,.36); gr.add(b);
+      const hole = new THREE.Mesh(new THREE.CircleGeometry(.06,12), M(0x1b1e2b)); hole.position.set(.12,.82,.405); gr.add(hole);
+      const n = box(.6,.05,.03,M(0x3a2a22),-.28,.98,.38,gr); n.rotation.z = -0.45; });
+    for (const k in P) P[k].traverse(o => { if (o.isMesh){ o.castShadow = true; o.userData.agent = this; } });
+  }
+  showProp(name){ for (const k in this.props) this.props[k].visible = (k === name); }
+  resetPose(){
+    this.legs.forEach(l => l.rotation.x = 0); this.arms.forEach(a => { a.rotation.x = 0; a.rotation.z = 0; });
+    this.head.rotation.set(0,0,0); this.root.position.y = 0; this.eyes.forEach(e => e.scale.y = 1); this.pose = null;
+  }
+  stopHobby(){
+    if (this.hobby){ if (this.hobby.slot.who === this) this.hobby.slot.who = null; this.hobby = null; }
+    this.showProp(null); this.resetPose();
+  }
+  backToWork(){
+    if (this.hobby || this.state === "coffee"){ this.stopHobby(); if (!this.queue.length && !this.task) this.goTo(this.home, "return"); }
+    this.wanderIn = 40 + Math.random()*30;
+  }
+  goIdle(){
+    const R = this.room, c = crew(R, this.role);
+    const free = (k) => { const st = R.stations[k]; if (!st) return -1; return st.slots.findIndex(sl => !sl.who); };
+    const options = [];
+    // si alguien espera pareja en ping-pong o ajedrez, a veces se une
+    for (const k of ["pingpong","ajedrez"]){ const st = R.stations[k]; if (st.slots.filter(sl => sl.who).length === 1 && Math.random() < .5) options.push(k); }
+    options.push(...[...c.hobbies].sort(() => Math.random() - .5));
+    if (Math.random() < .25) options.unshift("cafe");
+    if (Math.random() < .2) options.splice(1, 0, anyOf(Object.keys(HOBBIES)));
+    options.push("cafe");
+    for (const k of options){
+      const i = free(k); if (i < 0) continue;
+      const slot = R.stations[k].slots[i]; slot.who = this;
+      this.hobby = {kind:k, slot, slotIdx:i, left: (k === "cafe" ? 6 : 14) + Math.random()*14, talk: 1.5 + Math.random()*3};
+      this.goTo(slot.p, "hobby"); return;
+    }
+  }
+  partner(){
+    if (!this.hobby) return null;
+    const o = this.room.stations[this.hobby.kind].slots.find(sl => sl.who && sl.who !== this && sl.who.state === "hobby");
+    return o ? o.who : null;
   }
   say(text, kind="info", secs=4.5){
     if (this.bubble){ this.root.remove(this.bubble); this.bubble.material.map.dispose(); this.bubble.material.dispose(); }
@@ -417,7 +516,11 @@ class Agent {
     this.root.add(this.bubble); this.bubbleT = secs;
   }
   note(text){ this.log.unshift({t:new Date(), text}); this.log.length = Math.min(this.log.length, 12); if (selected === this) renderAgent(); }
-  enqueue(task){ this.queue.push(task); if (this.state === "work" || this.state === "wanderBack") this.next(); }
+  enqueue(task){
+    this.queue.push(task);
+    if (this.hobby || this.state === "coffee"){ this.stopHobby(); this.next(); return; }
+    if (this.state === "work" || (this.state === "walk" && this.phase === "return")) this.next();
+  }
   next(){
     if (!this.queue.length){ this.task = null; this.goTo(this.home, "return"); return; }
     this.task = this.queue.shift();
@@ -428,14 +531,49 @@ class Agent {
   statusText(){
     if (this.state === "walk" && this.phase === "deliver") return "Caminando a " + (this.task?.toName || "entregar");
     if (this.state === "walk" && this.phase === "wander") return "Por un café";
+    if (this.state === "walk" && this.phase === "hobby" && this.hobby) return "Va a su descanso: " + HOBBIES[this.hobby.kind].label;
+    if (this.state === "hobby" && this.hobby){ const pa = this.partner(); return HOBBIES[this.hobby.kind].doing + (pa ? " con " + crew(this.room, pa.role).nick : ""); }
     if (this.state === "walk") return "Regresando a su escritorio";
     if (this.state === "hand") return "Entregando: " + (this.task?.msg || "");
     if (this.state === "coffee") return "Tomando café";
     return "Trabajando en su escritorio";
   }
+  updateHobby(dt, t){
+    const h = this.hobby, sl = h.slot, L = this.legs, Ar = this.arms;
+    this.root.rotation.y = lerpAngle(this.root.rotation.y, sl.face, Math.min(1, dt*6));
+    if (sl.sit){ L[0].rotation.x = L[1].rotation.x = -1.45; this.root.position.y = 0; }
+    switch (h.kind){
+      case "pingpong": Ar[0].rotation.x = -0.4; Ar[1].rotation.x = -1.1 + Math.sin(t*3.2 + (h.slotIdx ? Math.PI : 0))*0.7; this.root.position.y = Math.abs(Math.sin(t*6.4))*0.04; break;
+      case "arcade": Ar[0].rotation.x = -1.15 + Math.sin(t*17)*.1; Ar[1].rotation.x = -1.15 + Math.sin(t*13 + 1)*.14; this.head.rotation.x = 0.12 + Math.sin(t*3)*.05; this.root.position.y = Math.max(0, Math.sin(t*1.7))*0.03; break;
+      case "ajedrez": Ar[0].rotation.x = -0.6; Ar[1].rotation.x = Math.sin(t*0.9 + this.seed) > 0.8 ? -1.35 : -0.7; this.head.rotation.x = 0.35; this.head.rotation.z = Math.sin(t*0.7 + this.seed)*0.12; break;
+      case "guitarra": Ar[0].rotation.x = -1.0; Ar[0].rotation.z = 0.45; Ar[1].rotation.x = -0.65 + Math.sin(t*9)*0.25; this.head.rotation.z = Math.sin(t*2.2)*0.14; break;
+      case "lectura": Ar[0].rotation.x = Ar[1].rotation.x = -1.0; this.head.rotation.x = 0.32 + Math.sin(t*0.4 + this.seed)*0.04; break;
+      case "siesta": Ar[0].rotation.x = Ar[1].rotation.x = -0.15; this.root.position.y = -0.1; this.head.rotation.x = 0.45; this.head.rotation.z = 0.25; this.eyes.forEach(e => e.scale.y = 0.12); break;
+      case "plantas": Ar[0].rotation.x = 0; Ar[1].rotation.x = -1.0 + Math.sin(t*1.5)*0.15; this.head.rotation.x = 0.25; break;
+      case "basquet": {
+        const up = this.pose === "aim" ? -2.8 : this.pose === "throw" ? -3.0 + Math.sin(t*20)*0.05 : -0.3;
+        Ar[0].rotation.x = Ar[1].rotation.x = up; this.root.position.y = this.pose === "throw" ? 0.12 : 0; this.head.rotation.x = this.pose === "wait" ? 0.1 : -0.25; break; }
+      case "yoga": {
+        const tree = Math.floor((t + this.seed) / 4) % 2 === 0;
+        Ar[0].rotation.x = Ar[1].rotation.x = tree ? -3.0 : -1.57; Ar[0].rotation.z = tree ? 0 : -1.4; Ar[1].rotation.z = tree ? 0 : 1.4;
+        L[1].rotation.x = tree ? -0.9 : 0; this.head.rotation.z = Math.sin(t*0.8)*0.08; this.root.position.y = tree ? 0.02 : 0; break; }
+      case "pintura": Ar[0].rotation.x = -0.4; Ar[1].rotation.x = -1.35 + Math.sin(t*5)*0.2; Ar[1].rotation.z = Math.sin(t*3)*0.25; this.head.rotation.z = Math.sin(t*0.6 + this.seed)*0.1; break;
+      case "cafe": Ar[0].rotation.x = 0; Ar[1].rotation.x = -1.6 + Math.sin(t*2)*.2; break;
+    }
+    h.talk -= dt;
+    if (h.talk <= 0){
+      h.talk = 6 + Math.random()*8;
+      const pa = this.partner();
+      if (pa && Math.random() < .3) this.say(`¡Vamos, ${crew(this.room, pa.role).nick}!`, "info", 2.5);
+      else this.say(anyOf(HOBBIES[h.kind].lines), "info", 2.5);
+    }
+    h.left -= dt;
+    if (h.left <= 0){ this.stopHobby(); this.goTo(this.home, "return"); }
+  }
   update(dt, t){
     if (this.bubble){ this.bubbleT -= dt; if (this.bubbleT < 0){ this.bubble.material.opacity -= dt*2; if (this.bubble.material.opacity <= 0){ this.root.remove(this.bubble); this.bubble = null; } } }
-    const blink = (Math.sin(t*0.9 + this.seed*3) > 0.985) ? 0.15 : 1; this.eyes.forEach(e => e.scale.y = blink);
+    const blink = (Math.sin(t*0.9 + this.seed*3) > 0.985) ? 0.15 : 1;
+    if (!(this.state === "hobby" && this.hobby && this.hobby.kind === "siesta")) this.eyes.forEach(e => e.scale.y = blink);
     this.bulb.material.emissiveIntensity = (this.state === "work" ? 0.9 + 0.5*Math.sin(t*4+this.seed) : 1.4);
     if (this.state === "walk"){
       const p = this.root.position; const d = this.dest.clone().sub(p); d.y = 0; const dist = d.length();
@@ -452,12 +590,20 @@ class Agent {
           this.state = "hand"; this.wait = 1.6; this.root.rotation.y = this.task.faceTo ? Math.atan2(this.task.faceTo.x - p.x, this.task.faceTo.z - p.z) : this.root.rotation.y;
           this.say(this.task.msg, this.task.kind || "info");
         } else if (this.phase === "wander"){ this.state = "coffee"; this.wait = 3 + Math.random()*3; this.say("Café ☕", "info", 2.5); }
+        else if (this.phase === "hobby" && this.hobby){
+          this.state = "hobby";
+          this.showProp({pingpong:"paddle", guitarra:"guitar", lectura:"book", plantas:"can", pintura:"brush", cafe:"mug"}[this.hobby.kind] || null);
+          this.say(anyOf(HOBBIES[this.hobby.kind].lines), "info", 2.5);
+          this.note("Descanso: " + HOBBIES[this.hobby.kind].label);
+        }
         else { this.state = "work"; if (this.queue.length) this.next(); }
       }
     } else if (this.state === "hand"){
       this.arms.forEach(a => a.rotation.x = -1.3);
       this.wait -= dt;
       if (this.wait <= 0){ this.carry.visible = false; const done = this.task.onDone; this.task = null; done && done(); this.next(); }
+    } else if (this.state === "hobby"){
+      this.updateHobby(dt, t);
     } else if (this.state === "coffee"){
       this.arms[1].rotation.x = -1.6 + Math.sin(t*2)*.2; this.wait -= dt;
       if (this.wait <= 0){ this.arms[1].rotation.x = 0; this.goTo(this.home, "return"); }
@@ -465,17 +611,219 @@ class Agent {
       this.root.rotation.y = lerpAngle(this.root.rotation.y, this.faceY, Math.min(1, dt*6));
       this.arms[0].rotation.x = -1.0 + Math.sin(t*14 + this.seed)*.12; this.arms[1].rotation.x = -1.0 + Math.sin(t*14 + this.seed + 1.7)*.12;
       this.head.rotation.x = Math.sin(t*1.3 + this.seed)*0.04;
-      this.wanderIn -= dt;
-      if (this.wanderIn <= 0 && !this.queue.length){
-        this.wanderIn = 45 + Math.random()*60;
-        if (Math.random() < 0.5){ this.goTo(this.room.coffee.clone().add(new THREE.Vector3(Math.random()*.8,0,Math.random()*.8)), "wander"); }
-      }
+      this.wanderIn -= dt; this.chatIn -= dt;
+      const busy = (this.busyUntil || 0) > performance.now()/1000;
+      if (this.wanderIn <= 0 && !this.queue.length && !busy){ this.wanderIn = 25 + Math.random()*45; this.goIdle(); }
+      if (this.chatIn <= 0){ this.chatIn = 30 + Math.random()*50; if (Math.random() < .35 && !this.bubble) this.say(anyOf(crew(this.room, this.role).quotes), "info", 3.5); }
     }
     const atDesk = this.state === "work";
     this.screenMat.emissiveIntensity = atDesk ? 0.55 + 0.15*Math.sin(t*9 + this.seed) : 0.12;
   }
 }
 function lerpAngle(a,b,k){ let d = b - a; while (d > Math.PI) d -= 2*Math.PI; while (d < -Math.PI) d += 2*Math.PI; return a + d*k; }
+
+/* ---------------- Zona de descanso (terraza frente a cada oficina) ---------------- */
+function buildLounge(R){
+  // la terraza vive en su propio grupo, un poco recorrida para no pisar el letrero de la sala
+  const OZ = 0.7, g = new THREE.Group(); g.position.z = OZ; R.group.add(g); R.lounge = g; R.stations = {}; R.fx = [];
+  const add = (id, slots, extra={}) => (R.stations[id] = Object.assign({id, slots: slots.map(([x,z,face,sit]) => ({p:new THREE.Vector3(x,0,z + (id === "cafe" ? 0 : OZ)), face, sit:!!sit, who:null}))}, extra));
+  // piso de duela
+  const dc = document.createElement("canvas"); dc.width = 256; dc.height = 64; const dg = dc.getContext("2d");
+  for (let i=0;i<8;i++){ dg.fillStyle = i%2 ? "#6b4f3a" : "#5c4332"; dg.fillRect(0,i*8,256,8); dg.fillStyle = "rgba(0,0,0,.22)"; dg.fillRect(0,i*8+7,256,1); dg.fillRect((i*53)%256,i*8,2,8); }
+  const dtex = new THREE.CanvasTexture(dc); dtex.wrapS = dtex.wrapT = THREE.RepeatWrapping; dtex.repeat.set(4,4); dtex.encoding = THREE.sRGBEncoding;
+  const deck = new THREE.Mesh(new THREE.PlaneGeometry(16.8,5.2), new THREE.MeshStandardMaterial({map:dtex, roughness:.95}));
+  deck.rotation.x = -Math.PI/2; deck.position.set(0,0.006,10.1); deck.receiveShadow = true; g.add(deck);
+  const lbl = textCanvas(["Zona de descanso"],{font:"700 54px 'Pixelify Sans', sans-serif", bg:"rgba(0,0,0,0)", fg:"#"+new THREE.Color(R.tint).getHexString(), pad:8});
+  const ltex = new THREE.CanvasTexture(lbl); ltex.encoding = THREE.sRGBEncoding;
+  const lm = new THREE.Mesh(new THREE.PlaneGeometry(0.62*lbl.width/lbl.height, 0.62), new THREE.MeshBasicMaterial({map:ltex, transparent:true}));
+  lm.rotation.x = -Math.PI/2; lm.position.set(0,0.02,12.95); g.add(lm);
+  // arbustos y foquitos
+  const leaf = M(0x3f8f5a,{flatShading:true});
+  for (let x=-8.2; x<=8.2; x+=1.15){ if (Math.abs(x) < 1.4) continue; const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34,0), leaf); b.position.set(x,0.28,12.75); b.scale.y = .8; b.castShadow = true; g.add(b); }
+  const bulbs = [];
+  for (let i=0;i<14;i++){ const b = new THREE.Mesh(new THREE.SphereGeometry(.06,8,6), new THREE.MeshBasicMaterial({color:[0xffd27a,0xff9f68,0x7bd389,0x8fb6ff][i%4]})); b.position.set(-7.8 + i*1.2, 2.1 - Math.abs(Math.sin(i*0.9))*0.25, 7.7); g.add(b); bulbs.push(b); }
+  for (const x of [-8.2, 8.2]) box(0.1,2.2,0.1,M(0x3a2a22),x,1.1,7.7,g);
+  R.fx.push((t) => bulbs.forEach((b,i) => b.material.color.setHSL(((i*0.13 + t*0.05) % 1), .8, .65)));
+
+  // 1) Ping-pong
+  const T = new THREE.Group(); T.position.set(-5.6,0,9.8); g.add(T);
+  box(2.6,0.06,1.4,M(0x2f7d5b,{roughness:.5}),0,0.76,0,T); box(2.6,0.005,0.03,M(0xffffff),0,0.795,0,T); box(0.03,0.005,1.4,M(0xffffff),0,0.795,0,T);
+  box(0.03,0.16,1.46,M(0xeeeeee,{transparent:true, opacity:.75}),0,0.86,0,T);
+  for (const [lx,lz] of [[-1.1,-.55],[1.1,-.55],[-1.1,.55],[1.1,.55]]) box(0.06,0.74,0.06,M(0x22242f),lx,0.37,lz,T);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(.05,10,8), new THREE.MeshBasicMaterial({color:0xfff6e0})); ball.visible = false; T.add(ball);
+  add("pingpong", [[-7.25,9.8,Math.PI/2],[-3.95,9.8,-Math.PI/2]], {anim(t){
+    const [a,b] = this.slots.map(s => s.who && s.who.state === "hobby");
+    ball.visible = a || b;
+    if (a && b){ const s = Math.sin(t*3.2); ball.position.set(1.2*s, 0.84 + Math.abs(Math.cos(t*3.2))*0.4, 0.3*Math.sin(t*1.7)); }
+    else if (a || b){ const side = a ? -1 : 1; ball.position.set(side*0.95, 0.84 + Math.abs(Math.sin(t*5))*0.5, 0); }
+  }});
+
+  // 2) Maquinita (arcade)
+  const A = new THREE.Group(); A.position.set(-2.2,0,7.95); g.add(A);
+  box(0.95,1.85,0.8,M(R.id === "gaming" ? 0x2a1f5c : 0x3b1f2a,{roughness:.6}),0,0.92,0,A);
+  const scrM = new THREE.MeshBasicMaterial({color:0x22ffaa}); const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.72,0.55), scrM); scr.position.set(0,1.36,0.405); A.add(scr);
+  const marq = new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.2), new THREE.MeshBasicMaterial({color:0xffd27a})); marq.position.set(0,1.73,0.405); A.add(marq);
+  box(0.95,0.08,0.4,M(0x15172a),0,0.98,0.5,A);
+  box(0.05,0.12,0.05,M(0xff4a5a),-0.2,1.07,0.55,A); for (const bx of [0.12,0.25]) box(0.08,0.03,0.08,M(0x7bd389,{emissive:0x7bd389, emissiveIntensity:.6}),bx,1.03,0.55,A);
+  add("arcade", [[-2.2,8.95,Math.PI]], {anim(t){
+    const on = this.slots[0].who && this.slots[0].who.state === "hobby";
+    scrM.color.setHSL(on ? (t*0.6) % 1 : 0.42, on ? .9 : .4, on ? (0.45 + 0.15*Math.sin(t*12)) : 0.22);
+  }});
+
+  // 3) Ajedrez
+  const C = new THREE.Group(); C.position.set(0.6,0,9.9); g.add(C);
+  const ctop = new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.06,24), M(0x8a5a3c)); ctop.position.y = .72; ctop.castShadow = true; C.add(ctop);
+  box(0.08,0.7,0.08,M(0x3a2a22),0,0.35,0,C);
+  const bc = document.createElement("canvas"); bc.width = bc.height = 64; const bg2 = bc.getContext("2d");
+  for (let i=0;i<8;i++) for (let j=0;j<8;j++){ bg2.fillStyle = (i+j)%2 ? "#3a2a22" : "#f1ede4"; bg2.fillRect(i*8,j*8,8,8); }
+  const btex = new THREE.CanvasTexture(bc); btex.magFilter = THREE.NearestFilter;
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(.6,.6), new THREE.MeshBasicMaterial({map:btex})); board.rotation.x = -Math.PI/2; board.position.y = .755; C.add(board);
+  const pieces = [];
+  for (let i=0;i<10;i++){ const pc = new THREE.Mesh(new THREE.CylinderGeometry(.022,.03,.08,8), M(i<5 ? 0xf6f3ec : 0x1b1e2b)); pc.position.set(-0.26 + ((i*3)%8)*0.075, .8, i<5 ? 0.22 : -0.22); C.add(pc); pieces.push(pc); }
+  for (const sx of [-0.95, 0.95]){ const st = new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,.45,14), M(0x5a6a8a)); st.position.set(sx,.225,0); st.castShadow = true; C.add(st); }
+  let nextMove = 0;
+  add("ajedrez", [[-0.35,9.9,Math.PI/2,true],[1.55,9.9,-Math.PI/2,true]], {anim(t){
+    if (!this.slots.some(s => s.who && s.who.state === "hobby") || t < nextMove) return;
+    nextMove = t + 2.5 + Math.random()*3;
+    const pc = anyOf(pieces); pc.position.x = -0.26 + Math.floor(Math.random()*8)*0.075; pc.position.z = -0.26 + Math.floor(Math.random()*8)*0.075;
+  }});
+
+  // 4) Guitarra (banco junto a la terraza)
+  const st2 = new THREE.Mesh(new THREE.CylinderGeometry(.24,.24,.45,14), M(0xb7f21a,{roughness:.8})); st2.position.set(-2.6,.225,11.25); st2.castShadow = true; g.add(st2);
+  box(0.5,0.9,0.4,M(0x22242f),-3.4,0.45,11.3,g); const amp = new THREE.Mesh(new THREE.CircleGeometry(.14,16), M(0x111111)); amp.position.set(-3.4,0.5,11.51); g.add(amp);
+  add("guitarra", [[-2.6,11.25,Math.PI/4,true]], {notes:0, anim(t, dt){
+    const w = this.slots[0].who; if (!w || w.state !== "hobby" || REDUCED) return;
+    this.notes -= dt; if (this.notes > 0) return; this.notes = 0.7;
+    floatSprite(R, anyOf(["♪","♫","♬"]), new THREE.Vector3(-2.6 + (Math.random()-.5)*.4, 1.6, 11.25), "#"+new THREE.Color(ROLES[w.role].color).getHexString());
+  }});
+
+  // 5) Sillón de lectura
+  const sofaC = M(R.id === "gaming" ? 0x5a4bb0 : 0xb5654a,{roughness:.9});
+  box(2.2,0.42,0.85,sofaC,3.4,0.21,11.25,g); box(2.2,0.75,0.22,sofaC,3.4,0.6,10.85,g);
+  box(0.22,0.6,0.85,sofaC,2.2,0.3,11.25,g); box(0.22,0.6,0.85,sofaC,4.6,0.3,11.25,g);
+  for (const cx of [2.9,3.9]) box(0.9,0.08,0.7,M(0xf1ede4,{roughness:1}),cx,0.46,11.3,g);
+  box(0.06,1.5,0.06,M(0x22242f),5.0,0.75,10.9,g); const shade = new THREE.Mesh(new THREE.ConeGeometry(.22,.3,14,1,true), M(0xffd27a,{emissive:0xffb347, emissiveIntensity:.8, side:THREE.DoubleSide})); shade.position.set(5.0,1.55,10.9); g.add(shade);
+  add("lectura", [[2.9,11.3,0,true],[3.9,11.3,0,true]]);
+
+  // 6) Puf para la siesta
+  const puf = new THREE.Mesh(new THREE.SphereGeometry(.62,18,12), M(R.tint,{roughness:1})); puf.scale.set(1,.5,1); puf.position.set(-0.5,.3,11.55); puf.castShadow = true; g.add(puf);
+  add("siesta", [[-0.5,11.5,0.25,true]], {z:0, anim(t, dt){
+    const w = this.slots[0].who; if (!w || w.state !== "hobby" || REDUCED) return;
+    this.z -= dt; if (this.z > 0) return; this.z = 1.4;
+    floatSprite(R, "Z", new THREE.Vector3(-0.4, 1.4, 11.55), "#c9d3ff");
+  }});
+
+  // 7) Jardinera
+  box(2.4,0.45,0.6,M(0x7a4f36),6.6,0.22,8.0,g); box(2.3,0.05,0.5,M(0x3a2a1c),6.6,0.46,8.0,g);
+  const flowers = [];
+  for (let i=0;i<7;i++){
+    const fx = 5.6 + i*0.33; const stem = box(0.03,0.35,0.03,M(0x3f8f5a),fx,0.64,8.0,g);
+    const fl = new THREE.Mesh(new THREE.SphereGeometry(.09,10,8), M([0xff6b7a,0xffd27a,0x8fb6ff,0xf78fb3,0xb7f21a][i%5])); fl.position.set(fx,0.85,8.0); fl.castShadow = true; g.add(fl); flowers.push(fl);
+  }
+  add("plantas", [[6.6,8.85,Math.PI]], {drop:0, anim(t, dt){
+    const w = this.slots[0].who; const on = w && w.state === "hobby";
+    flowers.forEach((f,i) => { const s = on ? 1 + 0.18*Math.max(0, Math.sin(t*2 + i)) : 1; f.scale.setScalar(s); });
+    if (!on || REDUCED) return; this.drop -= dt; if (this.drop > 0) return; this.drop = 0.18;
+    const wp = new THREE.Vector3(5.9 + Math.random()*1.4, 1.05, 8.05); R.lounge.localToWorld(wp);
+    const d = new THREE.Mesh(new THREE.SphereGeometry(.03,6,4), new THREE.MeshBasicMaterial({color:0x8fd3ff, transparent:true}));
+    d.position.copy(wp); d.userData.v = new THREE.Vector3(0,-0.5,0); d.userData.life = 0.5; scene.add(d); particles.push(d);
+  }});
+
+  // 8) Canasta de básquet
+  box(0.1,2.6,0.1,M(0x22242f),7.65,1.3,12.15,g);
+  box(1.1,0.75,0.06,M(0xf6f3ec),7.65,2.55,12.05,g); box(0.4,0.3,0.065,M(0xff6b4a),7.65,2.45,12.03,g);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(.2,.02,8,20), M(0xff6b4a)); rim.rotation.x = Math.PI/2; rim.position.set(7.65,2.3,11.78); g.add(rim);
+  const bball = new THREE.Mesh(new THREE.SphereGeometry(.12,14,10), M(0xe8742c,{roughness:.8})); bball.castShadow = true; bball.visible = false; g.add(bball);
+  const shoot = [6.5,10.3];
+  add("basquet", [[shoot[0],shoot[1],faceTo(shoot[0],shoot[1],7.65,11.78)]], {anim(t){
+    const w = this.slots[0].who; const on = w && w.state === "hobby"; bball.visible = !!on; if (!on) return;
+    const k = (t % 2.4) / 2.4; const hand = new THREE.Vector3(shoot[0] + .25, 2.05, shoot[1] + .25), hoop = rim.position;
+    if (k < .35){ bball.position.copy(hand); w.pose = "aim"; }
+    else if (k < .7){ const u = (k-.35)/.35; bball.position.lerpVectors(hand, hoop, u); bball.position.y += Math.sin(u*Math.PI)*1.1; w.pose = "throw"; }
+    else { const u = (k-.7)/.3; bball.position.lerpVectors(hoop, new THREE.Vector3(shoot[0]+.3,0.12,shoot[1]+.35), u); bball.position.y = Math.max(.12, 2.3*(1-u) - 0.4*Math.sin(u*Math.PI*3)*(1-u)); w.pose = "wait"; }
+  }});
+
+  // 9) Tapete de yoga
+  const mat = new THREE.Mesh(new THREE.PlaneGeometry(0.8,1.9), M(0x9b7ede,{roughness:1})); mat.rotation.x = -Math.PI/2; mat.rotation.z = Math.PI/4; mat.position.set(-5.4,0.014,11.6); g.add(mat);
+  add("yoga", [[-5.4,11.6,Math.PI/4]]);
+
+  // 10) Caballete de pintura
+  const E = new THREE.Group(); E.position.set(4.9,0,8.9); E.rotation.y = Math.PI/4; g.add(E);
+  for (const [lx,rz] of [[-.35,.12],[.35,-.12]]){ const l = box(0.05,1.7,0.05,M(0x8a5a3c),lx,0.85,0,E); l.rotation.z = rz; }
+  const back = box(0.05,1.6,0.05,M(0x8a5a3c),0,0.8,-0.35,E); back.rotation.x = -0.25;
+  box(1.0,0.05,0.12,M(0x8a5a3c),0,0.62,0.04,E);
+  const pc2 = document.createElement("canvas"); pc2.width = 128; pc2.height = 160; const pg = pc2.getContext("2d");
+  const resetCanvas = () => { pg.fillStyle = "#f6f3ec"; pg.fillRect(0,0,128,160); pg.strokeStyle = "#8a5a3c"; pg.lineWidth = 6; pg.strokeRect(0,0,128,160); };
+  resetCanvas();
+  const ptex = new THREE.CanvasTexture(pc2); ptex.encoding = THREE.sRGBEncoding;
+  const art = new THREE.Mesh(new THREE.PlaneGeometry(0.85,1.05), new THREE.MeshBasicMaterial({map:ptex})); art.position.set(0,1.18,0.08); E.add(art);
+  const ep = new THREE.Vector3(0,0,0.95).applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/4).add(new THREE.Vector3(4.9,0,8.9));
+  add("pintura", [[ep.x, ep.z, faceTo(ep.x, ep.z, 4.9, 8.9)]], {strokes:0, k:0, anim(t, dt){
+    const w = this.slots[0].who; if (!w || w.state !== "hobby") return;
+    this.k -= dt; if (this.k > 0) return; this.k = 0.3;
+    if (++this.strokes > 70){ this.strokes = 0; resetCanvas(); }
+    const col = new THREE.Color(ROLES[w.role].color).offsetHSL((Math.random()-.5)*.2, 0, (Math.random()-.5)*.3);
+    pg.strokeStyle = "#"+col.getHexString(); pg.lineWidth = 3 + Math.random()*7; pg.lineCap = "round";
+    const x = 14 + Math.random()*100, y = 14 + Math.random()*130;
+    pg.beginPath(); pg.moveTo(x,y); pg.quadraticCurveTo(x + (Math.random()-.5)*60, y + (Math.random()-.5)*60, x + (Math.random()-.5)*50, y + (Math.random()-.5)*50); pg.stroke();
+    ptex.needsUpdate = true;
+  }});
+
+  // café (la máquina ya existe dentro de la oficina)
+  add("cafe", [[-6.9,4.4,faceTo(-6.9,4.4,-7.8,5.4)],[-7.9,3.9,faceTo(-7.9,3.9,-7.8,5.4)],[-6.0,5.2,faceTo(-6.0,5.2,-7.8,5.4)]]);
+}
+function floatSprite(R, text, localPos, color){
+  const s = spriteFrom(textCanvas([text],{font:"700 64px 'IBM Plex Sans', sans-serif", bg:"rgba(0,0,0,0)", fg:color, pad:6}),0.32);
+  s.position.copy(localPos); R.lounge.localToWorld(s.position); s.material.transparent = true;
+  s.userData.v = new THREE.Vector3((Math.random()-.5)*.3, 0.55, 0); s.userData.life = 1.8; s.userData.sprite = true; s.userData.noGravity = true;
+  scene.add(s); particles.push(s);
+}
+
+/* ---------------- Mascota de la oficina ---------------- */
+class Pet {
+  constructor(R){
+    const P = PETS[R.id]; this.R = R; this.info = P; this.wait = 2; this.seed = Math.random()*9;
+    const root = new THREE.Group(); root.position.set(0,0,10.6); R.group.add(root); this.root = root;
+    const fur = M(P.color,{roughness:.7}), dark = M(0x1b1e2b,{roughness:.4});
+    box(0.5,0.26,0.3,fur,0,0.32,0,root);
+    for (const [lx,lz] of [[-.17,-.1],[.17,-.1],[-.17,.1],[.17,.1]]) box(0.07,0.2,0.07,dark,lx,0.1,lz,root);
+    const head = new THREE.Group(); head.position.set(0.3,0.5,0); root.add(head); this.head = head;
+    box(0.26,0.24,0.26,fur,0,0,0,head); box(0.05,0.08,0.18,dark,0.13,0.02,0,head);
+    for (const ez of [-.06,.06]){ const e = new THREE.Mesh(new THREE.SphereGeometry(.025,8,6), new THREE.MeshBasicMaterial({color:0xc9fbff})); e.position.set(0.135,0.05,ez); head.add(e); }
+    for (const ez of [-.08,.08]){ const ear = new THREE.Mesh(new THREE.ConeGeometry(.05,.12,4), fur); ear.position.set(0,0.17,ez); head.add(ear); }
+    this.tail = new THREE.Group(); this.tail.position.set(-0.25,0.4,0); root.add(this.tail);
+    const tl = new THREE.Mesh(new THREE.CylinderGeometry(.025,.02,.32,6), fur); tl.position.y = .15; tl.rotation.z = .5; this.tail.add(tl);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(.04,8,6), M(P.color,{emissive:P.color, emissiveIntensity:1})); tip.position.set(-0.08,0.29,0); this.tail.add(tip);
+    root.traverse(o => { if (o.isMesh){ o.castShadow = true; o.userData.pet = this; pickables.push(o); } });
+    this.dest = null; this.bubble = null; this.bubbleT = 0;
+  }
+  say(text){
+    if (this.bubble){ this.root.remove(this.bubble); this.bubble.material.map.dispose(); this.bubble.material.dispose(); }
+    this.bubble = spriteFrom(textCanvas([text],{tail:true}),0.5); this.bubble.position.set(0,1.2,0); this.root.add(this.bubble); this.bubbleT = 2.5;
+  }
+  update(dt, t){
+    if (this.bubble){ this.bubbleT -= dt; if (this.bubbleT < 0){ this.root.remove(this.bubble); this.bubble = null; } }
+    this.tail.rotation.x = Math.sin(t*(this.dest ? 6 : 3) + this.seed)*0.6;
+    if (!this.dest){
+      this.wait -= dt; this.head.rotation.y = Math.sin(t*0.8 + this.seed)*0.4;
+      if (this.wait <= 0){
+        // a veces va con alguien que esté en su pasatiempo
+        const busy = Object.values(this.R.agents).filter(a => a.state === "hobby");
+        if (busy.length && Math.random() < .5){ const a = anyOf(busy); this.dest = a.root.position.clone().add(new THREE.Vector3(.6,0,.6)); this.friend = a; }
+        else { this.dest = new THREE.Vector3(-7.5 + Math.random()*15, 0, 8.9 + Math.random()*3.8); this.friend = null; }
+      }
+      return;
+    }
+    const p = this.root.position, d = this.dest.clone().sub(p); d.y = 0; const dist = d.length();
+    if (dist > 0.05){
+      this.root.rotation.y = lerpAngle(this.root.rotation.y, Math.atan2(d.x, d.z) - Math.PI/2, Math.min(1, dt*8));
+      p.add(d.normalize().multiplyScalar(Math.min(1.1*dt, dist))); p.y = Math.abs(Math.sin(t*14))*0.03;
+    } else {
+      this.dest = null; this.wait = 3 + Math.random()*5; p.y = 0;
+      if (this.friend && Math.random() < .6){ this.say(this.info.sound); }
+    }
+  }
+}
 
 ROOMS.forEach(buildRoom);
 
@@ -512,9 +860,9 @@ function handoff(R, from, to, msg, opts={}){
       opts.after && opts.after();
     }
   });
-  const line = `${ROLES[from].name} → ${toName}: ${msg}`;
-  A.note(`A ${toName}: ${msg}`);
-  if (to !== "portal") R.agents[to].note(`Recibe de ${ROLES[from].name}: ${msg}`);
+  const line = `${who(R, from)} → ${nick(R, to)}: ${msg}`;
+  A.note(`A ${nick(R, to)}: ${msg}`);
+  if (to !== "portal") R.agents[to].note(`Recibe de ${nick(R, from)}: ${msg}`);
   feed(R, line);
 }
 
@@ -679,7 +1027,7 @@ async function pollActivity(){
       if (ev.to && (ev.to === "portal" || R.agents[ev.to])){
         handoff(R, ev.agent, ev.to, ev.msg, {kind: ev.kind, ack: ev.to === "portal" ? null : "Recibido"});
       } else {
-        A.say(ev.msg, ev.kind || "info", 6); A.note(ev.msg); feed(R, `${ROLES[ev.agent].name}: ${ev.msg}`);
+        A.backToWork(); A.say(ev.msg, ev.kind || "info", 6); A.note(ev.msg); feed(R, `${who(R, ev.agent)}: ${ev.msg}`);
         A.busyUntil = performance.now()/1000 + 30;
       }
     }
@@ -766,11 +1114,11 @@ async function renderStoryboards(R, box, base){
     const el = document.createElement("div"); el.className = "sb";
     const [label, color] = SB_STATUS[sb.status] || [sb.status, "var(--muted)"];
     const v = sb.verdict || {};
-    el.innerHTML = `<b></b><span class="tag"></span><small class="meta"></small><img alt="Storyboard" loading="lazy"><ul></ul>
+    el.innerHTML = `<b></b><span class="sbtag"></span><small class="meta"></small><img alt="Storyboard" loading="lazy"><ul></ul>
       <textarea placeholder="Notas para el Animador (p. ej. usa el ciclo con el compresor resaltado en la escena 3)"></textarea>
       <div class="row"><button type="button" class="btn primary" data-a="ok">Aprobar</button><button type="button" class="btn" data-a="redo">Rehacer animación</button></div>`;
     el.querySelector("b").textContent = sb.title;
-    const tag = el.querySelector(".tag"); tag.textContent = label; tag.style.color = color; tag.style.justifySelf = "start";
+    const tag = el.querySelector(".sbtag"); tag.textContent = label; tag.style.color = color; tag.style.justifySelf = "start";
     el.querySelector(".meta").textContent = `Equipo: ${sb.appliance} · Director ${v.score ?? "?"}/10 · revisión ${sb.revision||0} · video: ${sb.job_status}` + (v.summary && v.summary !== "dry-run" ? ` · ${v.summary}` : "");
     const src = `${base}/channels/${R.id}/storyboards/${sb.job_id}.jpg?t=${encodeURIComponent(api.token)}&v=${encodeURIComponent(sb.created_at||"")}`;
     const img = el.querySelector("img"); img.src = src; img.onclick = () => window.open(src, "_blank", "noopener");
@@ -807,8 +1155,11 @@ function renderAgent(){
   if (!selected) return;
   const a = selected, R = a.room;
   document.getElementById("a-sw").style.background = "#" + new THREE.Color(ROLES[a.role].color).getHexString();
-  document.getElementById("a-name").textContent = ROLES[a.role].name;
-  document.getElementById("a-room").textContent = R.name;
+  const c = crew(R, a.role);
+  document.getElementById("a-name").textContent = c.nick;
+  document.getElementById("a-room").textContent = `${ROLES[a.role].name} · ${R.name}`;
+  document.getElementById("a-vibe").textContent = c.vibe;
+  document.getElementById("a-likes").textContent = ["cafe", ...c.hobbies].map(h => HOBBIES[h].label).join(", ");
   document.getElementById("a-desc").textContent = ROLES[a.role].desc;
   document.getElementById("a-state").textContent = a.statusText();
   document.getElementById("a-inbox").textContent = mode === "live" ? ((live.inbox[R.id]||{})[a.role] || "Sin datos aún") : "Actividad simulada (modo demo)";
@@ -820,9 +1171,9 @@ document.getElementById("agent-close").onclick = () => { selected = null; panel.
 setInterval(() => { if (selected) document.getElementById("a-state").textContent = selected.statusText(); }, 500);
 
 /* ---------------- Cámara e interacción ---------------- */
-const FOCUS = {all:{x:0,size:30}, lcmc:{x:ROOMS[0].ox,size:17}, gaming:{x:ROOMS[1].ox,size:17}};
+const FOCUS = {all:{x:0,z:3,size:35}, lcmc:{x:ROOMS[0].ox,z:3.6,size:21}, gaming:{x:ROOMS[1].ox,z:3.6,size:21}};
 function focus(k){
-  view.goalTarget.set(FOCUS[k].x, 0, 0.4); view.goalSize = FOCUS[k].size;
+  view.goalTarget.set(FOCUS[k].x, 0, FOCUS[k].z); view.goalSize = FOCUS[k].size;
   for (const id of ["all","lcmc","gaming"]) document.getElementById("v-"+id).setAttribute("aria-pressed", String(id===k));
 }
 document.getElementById("v-all").onclick = () => focus("all");
@@ -873,7 +1224,12 @@ function pick(x, y){
   ndc.set(((x-rect.left)/rect.width)*2-1, -((y-rect.top)/rect.height)*2+1);
   ray.setFromCamera(ndc, camera);
   const hit = ray.intersectObjects(pickables, false)[0];
-  if (hit && hit.object.userData.agent){ selected = hit.object.userData.agent; panel.hidden = false; renderAgent(); selected.say(`Hola, soy ${ROLES[selected.role].name}`, "info", 2); }
+  if (hit && hit.object.userData.pet){ const P = hit.object.userData.pet; P.say(P.info.sound); feed(P.R, `${P.info.name}, la mascota de la oficina: ${P.info.sound}`); return; }
+  if (hit && hit.object.userData.agent){
+    selected = hit.object.userData.agent; panel.hidden = false; renderAgent();
+    const c = crew(selected.room, selected.role);
+    selected.say(selected.state === "hobby" ? `¡Hola! Soy ${c.nick}. Estoy en mi descanso.` : `¡Hola! Soy ${c.nick}. ${anyOf(c.quotes)}`, "info", 3.5);
+  }
 }
 
 /* ---------------- Bucle ---------------- */
@@ -885,12 +1241,15 @@ function frame(){
   if (mode === "demo") demoTick(dt);
   for (const R of ROOMS){
     for (const a of Object.values(R.agents)) a.update(dt, t);
+    for (const st of Object.values(R.stations)) st.anim && st.anim(t, dt);
+    for (const f of R.fx) f(t);
+    R.pet.update(dt, t);
     R.portalArch.material.emissiveIntensity = 0.7 + 0.3*Math.sin(t*2);
   }
   for (let i = particles.length-1; i >= 0; i--){
-    const p = particles[i]; p.userData.life -= dt; p.userData.v.y -= 4*dt;
-    p.position.addScaledVector(p.userData.v, dt); p.rotation.x += dt*4; p.material.opacity = Math.max(0, p.userData.life/1.4);
-    if (p.userData.life <= 0){ scene.remove(p); p.geometry.dispose(); p.material.dispose(); particles.splice(i,1); }
+    const p = particles[i]; p.userData.life -= dt; if (!p.userData.noGravity) p.userData.v.y -= 4*dt;
+    p.position.addScaledVector(p.userData.v, dt); if (!p.userData.sprite) p.rotation.x += dt*4; p.material.opacity = Math.max(0, Math.min(1, p.userData.life/1.4));
+    if (p.userData.life <= 0){ scene.remove(p); if (p.userData.sprite){ p.material.map.dispose(); } else p.geometry.dispose(); p.material.dispose(); particles.splice(i,1); }
   }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
