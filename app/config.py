@@ -24,9 +24,9 @@ class Settings(BaseSettings):
     PUBLISH_MODE: Literal["private", "scheduled"] = "private"
 
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
-    GEMINI_IMAGE_MODEL: str = "gemini-2.5-flash-image"
-    GEMINI_TTS_MODEL: str = "gemini-2.5-flash-preview-tts"
+    GEMINI_MODEL: str = "gemini-3.8-flash"
+    GEMINI_IMAGE_MODEL: str = "gemini-3.1-flash-image"
+    GEMINI_TTS_MODEL: str = "gemini-3.8-flash-tts"
 
     FIREBASE_CREDENTIALS: str = "./firebase-sa.json"
     FIREBASE_CREDENTIALS_B64: str = ""      # JSON de la cuenta de servicio en base64 (Render)

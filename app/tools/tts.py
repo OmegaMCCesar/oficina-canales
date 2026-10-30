@@ -47,37 +47,39 @@ def synthesize(text: str, out_path: Path, voice: str = DEFAULT_VOICE, language: 
     from ..llm import client
 
     prompt = f"{style or 'Habla en español de México, tono claro y amable, ritmo ágil'}: {text}"
-    last_err = None
+    name = _gemini_voice(voice)
+    configs = [
+        # forma actual de la API (voice_config.voice)
+        {"response_modalities": ["AUDIO"], "speech_config": {"voice_config": {"voice": name}}},
+        # forma anterior (prebuilt_voice_config.voice_name)
+        types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(
+                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=name)))),
+    ]
+    last_err, data = None, None
     for attempt in range(4):
+        cfg = configs[0] if attempt % 2 == 0 else configs[1]
         try:
-            resp = client().models.generate_content(
-                model=s.GEMINI_TTS_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=_gemini_voice(voice))
-                        )
-                    ),
-                ),
-            )
-            pcm = resp.candidates[0].content.parts[0].inline_data.data
+            resp = client().models.generate_content(model=s.GEMINI_TTS_MODEL, contents=prompt, config=cfg)
+            data = resp.candidates[0].content.parts[0].inline_data.data
             break
-        except Exception as e:  # límite de peticiones del nivel gratuito
+        except Exception as e:  # límite del nivel gratuito o forma de config no aceptada
             last_err = e
-            wait = 20 * (attempt + 1)
-            log.warning("TTS falló (%s), reintento en %ss", e, wait)
-            time.sleep(wait)
-    else:
+            log.warning("TTS falló (%s); reintento", str(e)[:200])
+            time.sleep(10 * (attempt + 1))
+    if data is None:
         raise RuntimeError(f"TTS de Gemini falló: {last_err}")
 
     wav_path = out_path.with_suffix(".wav")
-    with wave.open(str(wav_path), "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(24000)
-        w.writeframes(pcm)
+    if data[:4] == b"RIFF":          # WAV completo
+        wav_path.write_bytes(data)
+    else:                            # PCM crudo 24 kHz mono 16 bits
+        with wave.open(str(wav_path), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(24000)
+            w.writeframes(data)
     subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-i", str(wav_path), "-c:a", "libmp3lame", "-b:a", "128k",
                     str(out_path)], check=True)
     wav_path.unlink(missing_ok=True)
