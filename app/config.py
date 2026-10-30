@@ -17,12 +17,25 @@ MEDIA_DIR = ROOT / "media"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
+    # dry = todo simulado | live = Firestore + Gemini + YouTube reales
     MODE: Literal["dry", "live"] = "dry"
+    # private = sube a YouTube como PRIVADO sin programar (tú revisas y publicas en Studio)
+    # scheduled = sube privado con fecha de publicación automática
+    PUBLISH_MODE: Literal["private", "scheduled"] = "private"
+
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
-    GEMINI_IMAGE_MODEL: str = "imagen-4.0-generate-001"
+    GEMINI_IMAGE_MODEL: str = "gemini-2.5-flash-image"
+    GEMINI_TTS_MODEL: str = "gemini-2.5-flash-preview-tts"
+
     FIREBASE_CREDENTIALS: str = "./firebase-sa.json"
+    FIREBASE_CREDENTIALS_B64: str = ""      # JSON de la cuenta de servicio en base64 (Render)
+
     YOUTUBE_CLIENT_SECRETS: str = "./client_secret.json"
+    YOUTUBE_CLIENT_ID: str = ""             # cliente OAuth tipo web (Render)
+    YOUTUBE_CLIENT_SECRET: str = ""
+    PUBLIC_URL: str = "http://localhost:8000"
+
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
     API_TOKEN: str = "dev"
     GAMING_INBOX: str = "./media/gaming/inbox"

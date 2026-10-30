@@ -92,6 +92,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
 .modal .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
 .btn.primary{background:var(--lamp);color:#1a1404;border-color:transparent;font-weight:600}
 .err-msg{color:var(--bad);font-size:12.5px;min-height:1em}
+.acts{display:grid;gap:10px}
+.act{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0d0f17}
+.act h3{margin:0;font:700 15px var(--f-display);display:flex;justify-content:space-between;gap:8px;align-items:center}
+.act small{font:400 12px var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
+.act .ok{color:var(--ok)} .act .no{color:var(--warn)}
+.act .row{justify-content:flex-start}
+a.btn{text-decoration:none;display:inline-block}
 
 @media (max-width:640px){
   .brand small{display:none}
@@ -113,6 +120,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
       <button type="button" id="v-gaming" aria-pressed="false">LCMC Games</button>
     </div>
     <span class="pill demo" id="status"><i></i><span>Demo</span></span>
+    <button type="button" class="btn" id="open-actions" hidden>Acciones</button>
     <button type="button" class="btn" id="open-connect">Conectar API</button>
   </div>
 </div>
@@ -148,6 +156,16 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
       <button type="button" class="btn" id="cancel-connect">Cancelar</button>
       <button type="submit" class="btn primary">Conectar</button>
     </div>
+  </form>
+</div>
+
+<div class="modal" id="actions" hidden>
+  <form id="actions-form">
+    <h2>Acciones de la oficina</h2>
+    <p>Autoriza cada canal de YouTube una vez. Después puedes correr un ciclo: los agentes investigan, escriben, producen y suben el video como privado para que lo revises en YouTube Studio.</p>
+    <div id="actions-list" class="acts"></div>
+    <div class="err-msg" id="actions-msg"></div>
+    <div class="row"><button type="button" class="btn" id="close-actions">Cerrar</button></div>
   </form>
 </div>
 
@@ -618,11 +636,12 @@ async function poll(){
   } catch(e){ setStatus("err", "Sin conexión: " + e.message); }
 }
 function startLive(){
+  document.getElementById("open-actions").hidden = false;
   mode = "live"; clearInterval(live.timer);
   live.prev = {}; live.insights = {}; live.first = {}; live.req = {};
   setStatus("demo","Conectando…"); poll(); live.timer = setInterval(poll, 20000);
 }
-function startDemo(){ mode = "demo"; clearInterval(live.timer); setStatus("demo","Demo"); }
+function startDemo(){ document.getElementById("open-actions").hidden = true; mode = "demo"; clearInterval(live.timer); setStatus("demo","Demo"); }
 
 const modal = document.getElementById("connect");
 const urlIn = document.getElementById("api-url"), tokIn = document.getElementById("api-token"), errEl = document.getElementById("connect-err");
@@ -643,6 +662,44 @@ document.getElementById("connect-form").addEventListener("submit", async (e) => 
   } catch(err){ errEl.textContent = "No pude llegar a la API (" + err.message + "). Revisa la URL y que el servicio esté encendido."; }
 });
 if (api.url && api.token) startLive();
+
+/* ---------------- Acciones (autorizar YouTube, correr ciclo) ---------------- */
+const actModal = document.getElementById("actions"), actList = document.getElementById("actions-list"), actMsg = document.getElementById("actions-msg");
+async function renderActions(){
+  actList.innerHTML = ""; actMsg.textContent = "Cargando estado…"; actMsg.style.color = "var(--muted)";
+  for (const R of ROOMS){
+    const box = document.createElement("div"); box.className = "act";
+    let st = null; try { st = await getJSON(`/channels/${R.id}/status`); } catch(e){ actMsg.textContent = e.message; }
+    const auth = st && st.youtube_authorized;
+    const yc = st && st.youtube_channel;
+    const base = api.url.replace(/\/$/,"");
+    box.innerHTML = `<h3><span></span><span class="${auth?"ok":"no"}">${auth?"YouTube conectado":"Sin autorizar"}</span></h3>
+      <small></small>
+      <div class="row">
+        <a class="btn" target="_blank" rel="noopener"></a>
+        <button type="button" class="btn primary">Correr ciclo ahora</button>
+      </div>`;
+    box.querySelector("h3 span").textContent = R.name;
+    box.querySelector("small").textContent = yc ? `Canal: ${yc.title} ${yc.handle||""}` : `Modo: ${st?st.mode:"?"} · subida: ${st?st.publish_mode:"?"}`;
+    const a = box.querySelector("a"); a.href = `${base}/oauth/start/${R.id}?t=${encodeURIComponent(api.token)}`;
+    a.textContent = auth ? "Volver a autorizar" : "Autorizar YouTube";
+    box.querySelector("button").onclick = async (ev) => {
+      ev.target.disabled = true;
+      try {
+        const r = await fetch(`${base}/run/${R.id}`, {method:"POST", headers:{"x-token": api.token}});
+        if (!r.ok) throw new Error("La API respondió " + r.status);
+        actMsg.style.color = "var(--ok)"; actMsg.textContent = `Ciclo de ${R.name} iniciado. Tarda varios minutos; mira la bitácora.`;
+        feed(R, "Ciclo iniciado a mano desde Acciones");
+        R.agents.director.say("¡A trabajar, equipo!", "ok", 4);
+      } catch(e){ actMsg.style.color = "var(--bad)"; actMsg.textContent = "No se pudo iniciar: " + e.message; }
+      setTimeout(() => ev.target.disabled = false, 8000);
+    };
+    actList.append(box);
+  }
+  if (actMsg.textContent === "Cargando estado…") actMsg.textContent = "";
+}
+document.getElementById("open-actions").onclick = () => { actModal.hidden = false; renderActions(); };
+document.getElementById("close-actions").onclick = () => { actModal.hidden = true; };
 
 /* ---------------- Ficha del agente ---------------- */
 let selected = null;

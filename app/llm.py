@@ -53,16 +53,27 @@ def ask_json(system: str, user: str, schema: Type[T], fallback: T | None = None,
         contents.append(up)
     contents.append(user)
 
-    resp = client().models.generate_content(
-        model=settings().GEMINI_MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            system_instruction=system,
-            response_mime_type="application/json",
-            response_schema=schema,
-            temperature=0.7,
-        ),
-    )
+    import time
+    last = None
+    for attempt in range(4):
+        try:
+            resp = client().models.generate_content(
+                model=settings().GEMINI_MODEL,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0.7,
+                ),
+            )
+            break
+        except Exception as e:  # 429 del nivel gratuito, 503 de sobrecarga
+            last = e
+            log.warning("Gemini %s falló (%s); reintento", schema.__name__, str(e)[:160])
+            time.sleep(15 * (attempt + 1))
+    else:
+        raise RuntimeError(f"Gemini no respondió: {last}")
     try:
         return schema.model_validate_json(resp.text)
     except Exception:
@@ -73,24 +84,51 @@ def ask_json(system: str, user: str, schema: Type[T], fallback: T | None = None,
         return schema(**json.loads(txt))
 
 
+def _card_image(text: str, out_path: Path, aspect: str) -> Path:
+    """Respaldo sin IA: tarjeta con degradado cálido y el concepto de la escena."""
+    from PIL import Image, ImageDraw
+
+    from .tools.ffmpeg import font, wrap_lines
+
+    w, h = (1080, 1920) if aspect == "9:16" else (1920, 1080)
+    img = Image.new("RGB", (w, h))
+    d = ImageDraw.Draw(img)
+    top, bot = (32, 44, 78), (242, 166, 90)
+    for y in range(h):
+        t = y / h
+        d.line([(0, y), (w, y)], fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
+    fnt = font(76 if aspect == "9:16" else 64)
+    concept = text.split(".")[0][:120]
+    lines = wrap_lines(d, concept, fnt, int(w * 0.8))[:5]
+    y = h * 0.32
+    for l in lines:
+        d.text(((w - d.textlength(l, font=fnt)) / 2, y), l, font=fnt, fill="white", stroke_width=3, stroke_fill=(20, 20, 40))
+        y += 96
+    img.save(out_path)
+    return out_path
+
+
 def generate_image(prompt: str, out_path: Path, aspect: str = "9:16") -> Path:
-    """Imagen con Imagen (Gemini). En dry genera un placeholder con PIL."""
+    """Imagen con Gemini (flash-image). Si falla o no hay cuota, tarjeta de respaldo."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if settings().MODE == "dry" or not settings().GEMINI_API_KEY:
-        from PIL import Image, ImageDraw
-        w, h = (1080, 1920) if aspect == "9:16" else (1920, 1080)
-        img = Image.new("RGB", (w, h), (245, 200, 120))
-        d = ImageDraw.Draw(img)
-        d.rectangle([60, 60, w - 60, h - 60], outline=(120, 60, 20), width=12)
-        d.text((100, 100), prompt[:200], fill=(60, 30, 10))
-        img.save(out_path)
-        return out_path
+        return _card_image(prompt, out_path, aspect)
 
     from google.genai import types
-    r = client().models.generate_images(
-        model=settings().GEMINI_IMAGE_MODEL,
-        prompt=prompt,
-        config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio=aspect),
-    )
-    r.generated_images[0].image.save(str(out_path))
-    return out_path
+    try:
+        r = client().models.generate_content(
+            model=settings().GEMINI_IMAGE_MODEL,
+            contents=f"{prompt}. Formato {'vertical 9:16' if aspect == '9:16' else 'horizontal 16:9'}. Sin texto.",
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(aspect_ratio=aspect),
+            ),
+        )
+        for part in r.candidates[0].content.parts:
+            if getattr(part, "inline_data", None) and part.inline_data.data:
+                out_path.write_bytes(part.inline_data.data)
+                return out_path
+        raise RuntimeError("respuesta sin imagen")
+    except Exception as e:
+        log.warning("imagen IA no disponible (%s); uso tarjeta de respaldo", str(e)[:200])
+        return _card_image(prompt, out_path, aspect)

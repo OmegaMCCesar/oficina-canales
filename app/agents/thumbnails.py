@@ -46,7 +46,7 @@ def _overlay(img_path: Path, text: str, out: Path) -> Path:
         img = img.resize((1280, 720))
     d = ImageDraw.Draw(img)
     try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 110)
+        font = ImageFont.truetype(str(ffmpeg.FONT_PATH), 110)
     except OSError:
         font = ImageFont.load_default()
     words, lines, cur = text.upper().split(), [], ""

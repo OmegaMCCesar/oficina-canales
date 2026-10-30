@@ -87,6 +87,77 @@ def decisions(channel_id: str):
     return store().list(channel_id, "decisions", limit=20)
 
 
+@app.get("/channels/{channel_id}/status", dependencies=[Depends(auth)])
+def channel_status(channel_id: str):
+    from .db import get_secret
+    from .tools import youtube
+    info = None
+    try:
+        info = get_secret(channel_id, "youtube_channel")
+    except Exception:
+        pass
+    return {"channel": channel_id, "mode": settings().MODE, "publish_mode": settings().PUBLISH_MODE,
+            "youtube_authorized": youtube.is_authorized(channel_id), "youtube_channel": info}
+
+
+# ---------- Autorizar YouTube desde el navegador ----------
+import hashlib  # noqa: E402
+import hmac  # noqa: E402
+
+from fastapi import Request  # noqa: E402
+
+
+def _sign(value: str) -> str:
+    return hmac.new(settings().API_TOKEN.encode(), value.encode(), hashlib.sha256).hexdigest()[:24]
+
+
+def _page(title: str, body: str) -> HTMLResponse:
+    return HTMLResponse(f"""<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>
+<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#11131d;color:#eef0f7;
+font:16px system-ui,sans-serif;padding:16px}}main{{max-width:460px;background:#181b2a;border:1px solid #2a2e45;
+border-radius:14px;padding:24px}}h1{{color:#f2c14e;font-size:22px;margin:0 0 12px}}a{{color:#7bd389}}</style>
+</head><body><main><h1>{title}</h1>{body}<p><a href="/panel">Volver a la oficina</a></p></main></body></html>""")
+
+
+@app.get("/oauth/start/{channel_id}", include_in_schema=False)
+def oauth_start(channel_id: str, t: str = ""):
+    """Abre esta URL en el navegador: /oauth/start/lcmc?t=TU_API_TOKEN"""
+    if not secrets.compare_digest(t, settings().API_TOKEN):
+        return _page("Token inválido", "<p>Agrega <code>?t=TU_TOKEN</code> al final de la dirección.</p>")
+    if channel_id not in load_channels():
+        return _page("Canal desconocido", f"<p>No existe el canal <b>{channel_id}</b>.</p>")
+    if not settings().YOUTUBE_CLIENT_ID:
+        return _page("Falta configuración", "<p>El servidor no tiene YOUTUBE_CLIENT_ID.</p>")
+    from .tools import youtube
+    state = f"{channel_id}.{_sign(channel_id)}"
+    return RedirectResponse(youtube.auth_url(state))
+
+
+@app.get("/oauth/callback", include_in_schema=False)
+def oauth_callback(request: Request, state: str = "", error: str = ""):
+    if error:
+        return _page("Autorización cancelada", f"<p>Google respondió: {error}</p>")
+    channel_id, _, sig = state.partition(".")
+    if not channel_id or not secrets.compare_digest(sig, _sign(channel_id)):
+        return _page("Solicitud inválida", "<p>Vuelve a empezar desde la oficina.</p>")
+    from .tools import youtube
+    try:
+        info = youtube.finish_auth(channel_id, state, str(request.url))
+    except Exception as e:
+        logging.exception("oauth")
+        return _page("No se pudo autorizar", f"<p>{str(e)[:300]}</p>")
+    cfg = load_channels()[channel_id]
+    expected = (cfg.youtube_handle or "").lower()
+    got = (info.get("handle") or "").lower()
+    warn = ""
+    if expected and got and expected != got:
+        warn = (f"<p style='color:#ff9f68'>Ojo: esperaba <b>{cfg.youtube_handle}</b> y autorizaste "
+                f"<b>{info.get('handle')}</b>. Si no es el correcto, repite y elige el otro canal.</p>")
+    return _page("Canal autorizado",
+                 f"<p><b>{cfg.name}</b> quedó conectado a <b>{info['title']}</b> {info.get('handle', '')}.</p>{warn}")
+
+
 @app.post("/channels/{channel_id}/jobs/{job_id}/reject", dependencies=[Depends(auth)])
 def reject(channel_id: str, job_id: str):
     from .db import get_job, save_job

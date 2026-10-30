@@ -75,7 +75,13 @@ class _FirestoreStore:
         from firebase_admin import credentials, firestore
 
         if not firebase_admin._apps:
-            cred = credentials.Certificate(settings().FIREBASE_CREDENTIALS)
+            b64 = settings().FIREBASE_CREDENTIALS_B64
+            if b64:
+                import base64
+                info = json.loads(base64.b64decode(b64))
+                cred = credentials.Certificate(info)
+            else:
+                cred = credentials.Certificate(settings().FIREBASE_CREDENTIALS)
             firebase_admin.initialize_app(cred)
         self.client = firestore.client()
 
@@ -162,3 +168,14 @@ def save_decision(d: DirectorDecision) -> None:
 
 def log_run(channel_id: str, payload: dict) -> None:
     store().put(channel_id, "runs", datetime.utcnow().strftime("%Y-%m-%dT%H%M%S"), payload)
+
+
+# ---------- secretos por canal (token OAuth de YouTube) ----------
+# Viven en Firestore (privado, modo producción) para sobrevivir reinicios de Render.
+
+def save_secret(channel_id: str, name: str, value: dict) -> None:
+    store().put(channel_id, "secrets", name, value)
+
+
+def get_secret(channel_id: str, name: str) -> dict | None:
+    return store().get(channel_id, "secrets", name)
