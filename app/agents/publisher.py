@@ -29,9 +29,14 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     if is_short and "#Shorts" not in desc:
         desc += "\n#Shorts"
     try:
+        from ..config import settings
+        if settings().PUBLISH_MODE == "scheduled":
+            job.approved = True
+        from datetime import datetime, timedelta, timezone
+        auto = job.approved and job.scheduled_for and job.scheduled_for > datetime.now(timezone.utc) + timedelta(minutes=15)
         vid = youtube.upload_video(
             cfg.id, job.video_path, job.script.title, desc, job.script.tags,
-            publish_at=job.scheduled_for, thumbnail_path=job.thumbnail_chosen, is_short=is_short,
+            publish_at=job.scheduled_for if auto else None, thumbnail_path=job.thumbnail_chosen, is_short=is_short,
         )
         job.youtube_video_id = vid
         job.status = "scheduled"

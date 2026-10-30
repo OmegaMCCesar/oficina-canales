@@ -104,6 +104,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--lamp);outline-o
 .sb img{width:100%;border-radius:6px;cursor:zoom-in;background:#05060a;min-height:60px}
 .sb b{font:600 13px var(--f-display)} .sb ul{margin:0;padding-left:18px;font-size:12px;color:var(--muted)}
 .sb textarea{font:400 12.5px var(--f-mono);color:var(--ink);background:#0d0f17;border:1px solid var(--line);border-radius:8px;padding:8px;min-height:54px;resize:vertical}
+.cal{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#0d0f17}
+.cal .when{font:600 13px var(--f-mono);color:var(--lamp);grid-row:span 2;min-width:92px}
+.cal .when small{display:block;color:var(--muted);font-weight:400}
+.cal b{font:600 13px var(--f-body)} .cal small{font-size:12px;color:var(--muted)}
+.cal .row{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cal input{font:400 12px var(--f-mono);color:var(--ink);background:#0a0c13;border:1px solid var(--line);border-radius:8px;padding:6px}
+.chip{font:600 10.5px var(--f-mono);padding:2px 7px;border-radius:99px;margin-right:6px;color:#11131d}
 .sbtag{font:600 11px var(--f-mono);padding:2px 7px;border-radius:99px;border:1px solid currentColor}
 a.btn{text-decoration:none;display:inline-block}
 .sec{border:1px solid var(--line);border-radius:8px;background:#0a0c13;padding:8px 10px}
@@ -146,6 +153,7 @@ a.btn{text-decoration:none;display:inline-block}
     </div>
     <span class="pill demo" id="status"><i></i><span>Demo</span></span>
     <button type="button" class="pill clock" id="clock">…</button>
+    <button type="button" class="btn" id="open-calendar" hidden>Calendario</button>
     <button type="button" class="btn" id="open-actions" hidden>Acciones</button>
     <button type="button" class="btn" id="open-connect">Conectar API</button>
   </div>
@@ -183,6 +191,16 @@ a.btn{text-decoration:none;display:inline-block}
       <button type="button" class="btn" id="cancel-connect">Cancelar</button>
       <button type="submit" class="btn primary">Conectar</button>
     </div>
+  </form>
+</div>
+
+<div class="modal" id="calendar" hidden>
+  <form id="calendar-form">
+    <h2>Calendario del Director</h2>
+    <p>El Director decide qué video sale y a qué hora (CDMX) según su audiencia y lo que ha funcionado. Revisa el video en YouTube Studio y apruébalo: YouTube lo publica solo a esa hora. Si prefieres otra hora, cámbiala.</p>
+    <div id="calendar-list" class="acts"></div>
+    <div class="err-msg" id="calendar-msg"></div>
+    <div class="row"><button type="button" class="btn" id="close-calendar">Cerrar</button></div>
   </form>
 </div>
 
@@ -1242,11 +1260,12 @@ async function pollActivity(){
 function startLive(){
   clearInterval(live.actTimer); live.since = {}; pollActivity(); live.actTimer = setInterval(pollActivity, 4000);
   document.getElementById("open-actions").hidden = false;
+  document.getElementById("open-calendar").hidden = false;
   mode = "live"; clearInterval(live.timer);
   live.prev = {}; live.insights = {}; live.first = {}; live.req = {};
   setStatus("demo","Conectando…"); poll(); live.timer = setInterval(poll, 20000);
 }
-function startDemo(){ document.getElementById("open-actions").hidden = true; mode = "demo"; clearInterval(live.actTimer); clearInterval(live.timer); setStatus("demo","Demo"); }
+function startDemo(){ document.getElementById("open-actions").hidden = true; document.getElementById("open-calendar").hidden = true; mode = "demo"; clearInterval(live.actTimer); clearInterval(live.timer); setStatus("demo","Demo"); }
 
 const modal = document.getElementById("connect");
 const urlIn = document.getElementById("api-url"), tokIn = document.getElementById("api-token"), errEl = document.getElementById("connect-err");
@@ -1502,6 +1521,71 @@ async function renderStoryboards(R, box, base){
     box.append(el);
   }
 }
+/* ---------------- Calendario del Director ---------------- */
+const calModal = document.getElementById("calendar"), calList = document.getElementById("calendar-list"), calMsg = document.getElementById("calendar-msg");
+const fmtWhen = (iso) => {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("es-MX", {timeZone: "America/Mexico_City", weekday: "short", day: "numeric", month: "short"});
+  const hr = d.toLocaleTimeString("es-MX", {timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit", hourCycle: "h23"});
+  return [day, hr];
+};
+const localInput = (iso) => {
+  const p = new Intl.DateTimeFormat("en-CA", {timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"}).formatToParts(new Date(iso));
+  const g = (t) => p.find(x => x.type === t).value;
+  return `${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}`;
+};
+async function calPost(R, path, body){
+  const base = api.url.replace(/\/$/,"");
+  const r = await fetch(`${base}/channels/${R.id}/calendar/${path}`, {method:"POST", headers:{"x-token": api.token, "content-type":"application/json"}, body: JSON.stringify(body || {})});
+  if (!r.ok){ const t = await r.json().catch(() => ({})); throw new Error(t.detail || ("La API respondió " + r.status)); }
+  return r.json();
+}
+async function renderCalendar(){
+  calList.innerHTML = ""; calMsg.style.color = "var(--muted)"; calMsg.textContent = "Cargando…";
+  let pending = 0;
+  for (const R of ROOMS){
+    let data; try { data = await getJSON(`/channels/${R.id}/calendar`); } catch(e){ calMsg.textContent = e.message; continue; }
+    const box = el("div","act"); const h = el("h3"); h.append(el("span", null, R.name)); box.append(h);
+    const items = data.items || [];
+    if (!items.length) box.append(el("small", null, "Sin videos listos por ahora. Aparecen aquí en cuanto el equipo termina uno."));
+    const waiting = items.filter(it => !it.approved && it.status !== "published");
+    pending += waiting.length;
+    for (const it of items){
+      const c = el("div","cal");
+      const [day, hr] = fmtWhen(it.when);
+      const w = el("div","when", hr); w.append(el("small", null, day)); c.append(w);
+      const t = el("b"); const chip = el("span","chip", it.format === "long" ? "LARGO" : "SHORT");
+      chip.style.background = it.format === "long" ? "#b7f21a" : "#8fb6ff"; t.append(chip, document.createTextNode(it.title)); c.append(t);
+      const state = it.status === "published" ? "✓ Publicado" : it.approved ? "Aprobado: YouTube lo publica solo a esa hora" : it.video_id ? "Esperando tu aprobación (ya está en Studio como privado)" : "Esperando tu aprobación (se sube en el próximo ciclo)";
+      c.append(el("small", null, `${it.reason ? "Director: " + it.reason + " · " : ""}${state}${it.score ? " · Crítica " + it.score + "/10" : ""}`));
+      const row = el("div","row");
+      if (it.status !== "published"){
+        if (!it.approved){
+          const ok = el("button","btn primary","Aprobar"); ok.type = "button";
+          ok.onclick = async () => { ok.disabled = true; try { const r = await calPost(R, `${it.job_id}/approve`); calMsg.style.color = "var(--ok)"; calMsg.textContent = `Listo: ${r.result}.`; R.agents.director.say("¡Aprobado! Sale a su hora", "ok", 4); renderCalendar(); } catch(e){ calMsg.style.color = "var(--bad)"; calMsg.textContent = e.message; ok.disabled = false; } };
+          row.append(ok);
+        }
+        const inp = el("input"); inp.type = "datetime-local"; inp.value = localInput(it.when);
+        const mv = el("button","btn","Cambiar hora"); mv.type = "button";
+        mv.onclick = async () => { mv.disabled = true; try { const r = await calPost(R, `${it.job_id}/move`, {when: inp.value}); calMsg.style.color = "var(--ok)"; calMsg.textContent = `Hora cambiada (${r.result}).`; renderCalendar(); } catch(e){ calMsg.style.color = "var(--bad)"; calMsg.textContent = e.message; mv.disabled = false; } };
+        row.append(inp, mv);
+      }
+      if (it.studio){ const a = el("a","btn","Ver en Studio"); a.href = it.studio; a.target = "_blank"; a.rel = "noopener"; row.append(a); }
+      c.append(row); box.append(c);
+    }
+    if (waiting.length > 1){
+      const all = el("button","btn","Aprobar los " + waiting.length); all.type = "button";
+      all.onclick = async () => { all.disabled = true; let n = 0; for (const it of waiting){ try { await calPost(R, `${it.job_id}/approve`); n++; } catch(e){ calMsg.style.color = "var(--bad)"; calMsg.textContent = e.message; } } calMsg.style.color = "var(--ok)"; calMsg.textContent = `${n} aprobados.`; renderCalendar(); };
+      const row = el("div","row"); row.append(all); box.append(row);
+    }
+    calList.append(box);
+  }
+  if (calMsg.textContent === "Cargando…") calMsg.textContent = pending ? `${pending} video(s) esperan tu aprobación.` : "Todo al día.";
+  if (pending) ROOMS[0].agents.director.say(`César: ${pending} video(s) esperan tu aprobación en el Calendario`, "ask", 6);
+}
+document.getElementById("open-calendar").onclick = () => { calModal.hidden = false; renderCalendar(); };
+document.getElementById("close-calendar").onclick = () => { calModal.hidden = true; };
+
 document.getElementById("open-actions").onclick = () => { actModal.hidden = false; renderActions(); };
 document.getElementById("close-actions").onclick = () => { actModal.hidden = true; };
 

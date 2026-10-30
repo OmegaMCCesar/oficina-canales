@@ -314,6 +314,77 @@ def money_link(channel_id: str, body: dict):
     return monetization.save_link(channel_id, product, url)
 
 
+@app.get("/channels/{channel_id}/calendar", dependencies=[Depends(auth)])
+def calendar(channel_id: str):
+    """Calendario del Director: qué video sale y cuándo, por qué, y si César ya lo aprobó."""
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    items = []
+    for j in jobs(channel_id):
+        if j.status not in ("thumbnailed", "scheduled", "published") or not j.scheduled_for:
+            continue
+        if j.status == "published" and (j.published_at or j.scheduled_for) < now - timedelta(days=3):
+            continue
+        items.append({"job_id": j.id, "title": j.script.title if j.script else j.idea.title, "format": j.idea.format,
+                      "when": j.scheduled_for.isoformat(), "reason": j.schedule_reason, "approved": j.approved,
+                      "status": j.status, "video_id": j.youtube_video_id,
+                      "studio": f"https://studio.youtube.com/video/{j.youtube_video_id}/edit" if j.youtube_video_id else "",
+                      "score": (j.qa.get("video_review") or {}).get("score")})
+    items.sort(key=lambda x: x["when"])
+    return {"items": items, "auto": settings().PUBLISH_MODE == "scheduled"}
+
+
+def _apply_schedule(channel_id: str, j) -> str:
+    from .db import save_job
+    from .tools import youtube
+    res = "aprobado (se programa al subirlo)"
+    if j.youtube_video_id and j.status == "scheduled":
+        res = youtube.set_publish(channel_id, j.youtube_video_id, j.scheduled_for)
+    save_job(j)
+    return res
+
+
+@app.post("/channels/{channel_id}/calendar/{job_id}/approve", dependencies=[Depends(auth)])
+def calendar_approve(channel_id: str, job_id: str):
+    from .db import add_activity, get_job
+    j = get_job(channel_id, job_id)
+    if not j or not j.scheduled_for:
+        raise HTTPException(404)
+    j.approved = True
+    try:
+        res = _apply_schedule(channel_id, j)
+    except Exception as e:
+        j.approved = False
+        raise HTTPException(502, f"YouTube no aceptó la programación: {str(e)[:160]}")
+    add_activity(channel_id, "director", f"César aprobó: «{(j.script.title if j.script else j.idea.title)[:50]}» ({res})",
+                 to="publicador", kind="ok")
+    return {"ok": True, "result": res}
+
+
+@app.post("/channels/{channel_id}/calendar/{job_id}/move", dependencies=[Depends(auth)])
+def calendar_move(channel_id: str, job_id: str, body: dict):
+    """César cambia la hora (hora de CDMX 'YYYY-MM-DDTHH:MM')."""
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+
+    from .db import get_job
+    j = get_job(channel_id, job_id)
+    if not j:
+        raise HTTPException(404)
+    try:
+        when = datetime.strptime(str(body.get("when", ""))[:16], "%Y-%m-%dT%H:%M").replace(tzinfo=ZoneInfo("America/Mexico_City"))
+    except ValueError:
+        raise HTTPException(400, "Fecha inválida")
+    if when < datetime.now(timezone.utc) - timedelta(minutes=1):
+        raise HTTPException(400, "Esa hora ya pasó")
+    j.scheduled_for, j.schedule_reason, j.approved = when.astimezone(timezone.utc), "Hora elegida por César", True
+    try:
+        res = _apply_schedule(channel_id, j)
+    except Exception as e:
+        raise HTTPException(502, f"YouTube no aceptó el cambio: {str(e)[:160]}")
+    return {"ok": True, "result": res}
+
+
 @app.get("/channels/{channel_id}/storyboards", dependencies=[Depends(auth)])
 def storyboards(channel_id: str, limit: int = 12):
     """Storyboards del Animador con el veredicto del Director (sin la imagen)."""

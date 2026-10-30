@@ -129,7 +129,7 @@ def upload_video(channel_id: str, video_path: str, title: str, description: str,
 
     yt = data_api(channel_id)
     status = {"privacyStatus": "private", "selfDeclaredMadeForKids": False}
-    if publish_at and settings().PUBLISH_MODE == "scheduled":
+    if publish_at:   # el Publicador solo lo manda si César aprobó (o el modo es automático)
         status["publishAt"] = publish_at.astimezone().isoformat()
     body = {
         "snippet": {
@@ -292,3 +292,38 @@ def channel_progress(channel_id: str) -> dict:
         out["long_hours_365"] = round(((r.get("rows") or [[0]])[0][0]) / 60, 1)
         out["note"] = "Horas totales (sin separar Shorts); YouTube cuenta solo las de videos largos"
     return out
+
+
+# ---------------- Calendario: estado real y hora de publicación ----------------
+
+def video_status(channel_id: str, ids: list[str]) -> dict:
+    """{id: {"privacy": public|private|unlisted, "publish_at": iso|None, "published_at": iso|None}}"""
+    if not ids:
+        return {}
+    if settings().MODE == "dry":
+        return {i: {"privacy": "private", "publish_at": None, "published_at": None} for i in ids}
+    yt = data_api(channel_id)
+    out = {}
+    for k in range(0, len(ids), 50):
+        r = yt.videos().list(part="status,snippet", id=",".join(ids[k:k + 50])).execute()
+        for it in r.get("items", []):
+            st = it.get("status", {})
+            out[it["id"]] = {"privacy": st.get("privacyStatus"), "publish_at": st.get("publishAt"),
+                             "published_at": it.get("snippet", {}).get("publishedAt")}
+    return out
+
+
+def set_publish(channel_id: str, video_id: str, when: datetime | None) -> str:
+    """Programa la publicación en YouTube (privado + publishAt). Si la hora ya pasó, lo hace público ya."""
+    if settings().MODE == "dry":
+        return "dry"
+    yt = data_api(channel_id)
+    now = datetime.now(when.tzinfo if when else None) if when else None
+    if when and when > now + timedelta(minutes=10):
+        status = {"privacyStatus": "private", "publishAt": when.astimezone().isoformat(), "selfDeclaredMadeForKids": False}
+        res = "programado"
+    else:
+        status = {"privacyStatus": "public", "selfDeclaredMadeForKids": False}
+        res = "publicado"
+    yt.videos().update(part="status", body={"id": video_id, "status": status}).execute()
+    return res

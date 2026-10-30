@@ -96,6 +96,8 @@ class VideoJob(BaseModel):
     comment_posted: bool = False
     director_notes: str = ""
     package: dict = Field(default_factory=dict)   # Estratega de empaque: título + miniatura aprobados
+    schedule_reason: str = ""     # por qué el Director eligió ese día y hora
+    approved: bool = False        # César aprobó: YouTube lo publica solo a esa hora
     qa: dict = Field(default_factory=dict)        # Guardián de calidad: veredicto y originalidad
     anim_notes: str = ""          # notas de César para rehacer la animación
     anim_redo: bool = False

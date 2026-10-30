@@ -48,10 +48,19 @@ horarios y formatos. Reglas:
 def _collect(cfg: ChannelConfig) -> int:
     now = datetime.now(timezone.utc)
     n = 0
-    for job in jobs(cfg.id, "scheduled"):
-        if job.scheduled_for and job.scheduled_for <= now:
+    # estado REAL en YouTube (privado, programado o ya público, aunque César lo haya publicado a mano)
+    sched = [j for j in jobs(cfg.id, "scheduled") if j.youtube_video_id]
+    try:
+        st = youtube.video_status(cfg.id, [j.youtube_video_id for j in sched])
+    except Exception as e:
+        log.warning("[%s] no pude leer el estado de los videos: %s", cfg.id, e)
+        st = {}
+    for job in sched:
+        s = st.get(job.youtube_video_id)
+        if s and s.get("privacy") == "public":
             job.status = "published"
-            job.published_at = job.scheduled_for
+            pa = s.get("published_at")
+            job.published_at = datetime.fromisoformat(pa.replace("Z", "+00:00")) if pa else now
             save_job(job)
     for job in jobs(cfg.id, "published"):
         if not job.youtube_video_id or not job.published_at:
