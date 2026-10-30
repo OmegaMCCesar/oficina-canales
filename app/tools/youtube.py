@@ -67,7 +67,8 @@ def _web_flow(state: str | None = None):
         "token_uri": "https://oauth2.googleapis.com/token",
         "redirect_uris": [s.PUBLIC_URL.rstrip("/") + "/oauth/callback"],
     }}
-    flow = Flow.from_client_config(cfg, scopes=SCOPES, state=state)
+    # Cliente web con secreto: sin PKCE (el verificador no sobreviviría entre /oauth/start y /oauth/callback)
+    flow = Flow.from_client_config(cfg, scopes=SCOPES, state=state, autogenerate_code_verifier=False)
     flow.redirect_uri = s.PUBLIC_URL.rstrip("/") + "/oauth/callback"
     return flow
 
