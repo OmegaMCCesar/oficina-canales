@@ -327,3 +327,23 @@ def set_publish(channel_id: str, video_id: str, when: datetime | None) -> str:
         res = "publicado"
     yt.videos().update(part="status", body={"id": video_id, "status": status}).execute()
     return res
+
+
+def apply_branding(channel_id: str, description: str, keywords: str, banner: Path | None) -> dict:
+    """Pone la descripción, las palabras clave y la portada del canal. La foto de perfil NO se puede cambiar por API
+    (YouTube no lo permite): esa la sube César en Studio → Personalización."""
+    from googleapiclient.http import MediaFileUpload
+    yt = data_api(channel_id)
+    me = yt.channels().list(part="brandingSettings", mine=True).execute()["items"][0]
+    bs = me.get("brandingSettings", {})
+    bs.setdefault("channel", {})
+    bs["channel"]["description"] = description[:1000]
+    bs["channel"]["keywords"] = keywords[:500]
+    done = ["descripción", "palabras clave"]
+    if banner and banner.exists():
+        url = yt.channelBanners().insert(media_body=MediaFileUpload(str(banner), mimetype="image/png")).execute()["url"]
+        bs.setdefault("image", {})["bannerExternalUrl"] = url
+        done.append("portada")
+    bs.pop("hints", None)
+    yt.channels().update(part="brandingSettings", body={"id": me["id"], "brandingSettings": bs}).execute()
+    return {"applied": done}

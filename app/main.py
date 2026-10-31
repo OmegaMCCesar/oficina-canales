@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from . import orchestrator
 from .config import load_channels, settings
-from .db import insights, jobs, metrics, store
+from .db import add_activity, insights, jobs, metrics, store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 from .memory import limit_arenas  # noqa: E402
@@ -314,6 +314,50 @@ def money_link(channel_id: str, body: dict):
     if not product or u.scheme != "https" or not u.netloc:
         raise HTTPException(400, "Pon el nombre del producto y un link que empiece con https://")
     return monetization.save_link(channel_id, product, url)
+
+
+BRAND_DIR = Path(__file__).parent / "static" / "brand"
+
+
+@app.get("/channels/{channel_id}/brand", dependencies=[Depends(auth)])
+def brand(channel_id: str):
+    """Identidad del canal: logo, portada, descripción y palabras clave (y si ya se aplicó en YouTube)."""
+    from .config import get_channel
+    cfg = get_channel(channel_id)
+    d = BRAND_DIR / channel_id
+    return {**cfg.branding, "logo": (d / "logo.png").exists(), "banner": (d / "banner.png").exists(),
+            "applied": store().get(channel_id, "brand", "applied")}
+
+
+@app.get("/brand/{channel_id}/{name}", include_in_schema=False)
+def brand_file(channel_id: str, name: str):
+    from fastapi.responses import FileResponse
+    if name not in ("logo.png", "banner.png") or not channel_id.isalnum():
+        raise HTTPException(404)
+    f = BRAND_DIR / channel_id / name
+    if not f.exists():
+        raise HTTPException(404)
+    return FileResponse(f, media_type="image/png", filename=f"{channel_id}-{name}")
+
+
+@app.post("/channels/{channel_id}/brand/apply", dependencies=[Depends(auth)])
+def brand_apply(channel_id: str):
+    """César aprueba en el panel y la oficina pone descripción, palabras clave y portada en YouTube."""
+    from datetime import datetime, timezone
+
+    from .config import get_channel
+    from .tools import youtube
+    cfg = get_channel(channel_id)
+    if not cfg.branding.get("description"):
+        raise HTTPException(400, "Este canal todavía no tiene identidad preparada")
+    try:
+        r = youtube.apply_branding(channel_id, cfg.branding["description"], cfg.branding.get("keywords", ""),
+                                   BRAND_DIR / channel_id / "banner.png")
+    except Exception as e:
+        raise HTTPException(502, f"YouTube no aceptó el cambio: {str(e)[:200]}")
+    store().put(channel_id, "brand", "applied", {**r, "at": datetime.now(timezone.utc).isoformat()})
+    add_activity(channel_id, "seo", "Actualicé la página del canal: " + ", ".join(r["applied"]), kind="ok")
+    return r
 
 
 @app.get("/usage", dependencies=[Depends(auth)])

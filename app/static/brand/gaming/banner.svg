@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1440" viewBox="0 0 2560 1440">
+ <defs>
+  <radialGradient id="bg" cx="50%" cy="50%" r="65%"><stop offset="0" stop-color="#2a1b5e"/><stop offset=".6" stop-color="#120d33"/><stop offset="1" stop-color="#07061a"/></radialGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+  <linearGradient id="bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9ff4a"/><stop offset=".5" stop-color="#7cf5c9"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+  <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#f5a524"/></linearGradient>
+  <linearGradient id="line" x1="0" x2="1"><stop offset="0" stop-color="#22d3ee" stop-opacity="0"/><stop offset=".5" stop-color="#22d3ee"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></linearGradient>
+  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <pattern id="hex" width="120" height="104" patternUnits="userSpaceOnUse"><polygon points="30,2 90,2 118,52 90,102 30,102 2,52" fill="none" stroke="#8b5cf6" stroke-opacity=".10" stroke-width="2"/></pattern>
+ </defs>
+ <rect width="2560" height="1440" fill="url(#bg)"/>
+ <rect width="2560" height="1440" fill="url(#hex)"/>
+ <rect x="0" y="560" width="2560" height="4" fill="url(#line)" opacity=".6"/>
+ <rect x="0" y="876" width="2560" height="4" fill="url(#line)" opacity=".6"/>
+ <g transform="translate(1280 715) scale(.84) translate(-1408 -700)">
+ <!-- emblema -->
+ <g transform="translate(700 720) scale(.62) translate(-400 -340)">
+  <polygon points="400,105 610,226 610,454 400,575 190,454 190,226" fill="#0d0a2b" stroke="url(#rim)" stroke-width="16" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M432 165 L300 365 L388 365 L352 520 L505 300 L414 300 L462 165 Z" fill="url(#bolt)" stroke="#07061a" stroke-width="10" stroke-linejoin="round" filter="url(#glow)"/>
+ </g>
+ <g transform="translate(900 742) skewX(-10)">
+  <text font-family="Inter Display" font-weight="900" font-size="170" letter-spacing="-3" fill="#07061a" stroke="#07061a" stroke-width="22" stroke-linejoin="round">LCMC</text>
+  <text font-family="Inter Display" font-weight="900" font-size="170" letter-spacing="-3" fill="#fff">LCMC</text>
+ </g>
+ <g transform="translate(1440 742) skewX(-10)">
+  <text font-family="Inter Display" font-weight="900" font-size="170" letter-spacing="-3" fill="url(#gold)">GAMES</text>
+ </g>
+ <text x="906" y="822" font-family="Inter" font-weight="700" font-size="46" letter-spacing="3" fill="#c9c3ff">MOBILE LEGENDS · MAGIC CHESS · GUÍAS DE HÉROES</text>
+ </g>
+ <text x="1280" y="1040" text-anchor="middle" font-family="Inter" font-weight="600" font-size="40" fill="#7cf5c9" opacity=".9">Partidas reales, sin humo · Nuevo video cada semana</text>
+</svg>

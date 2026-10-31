@@ -1455,6 +1455,30 @@ async function renderOffice(R, box, base){
     a.href = `${base}/oauth/drive?t=${encodeURIComponent(api.token)}`; a.target = "_blank"; a.rel = "noopener";
     const row = el("div","row"); row.append(a); dd.append(row);
   }
+  // 3b2) identidad del canal (logo, portada, descripción)
+  try {
+    const br = await getJSON(`/channels/${R.id}/brand`);
+    if (br.description){
+      const db = sec("🎨 Identidad del canal" + (br.applied ? " · aplicada" : " · lista para aplicar"), !br.applied);
+      const imgs = el("div","row");
+      if (br.logo){ const a = el("a"); a.href = `${base}/brand/${R.id}/logo.png`; a.download = ""; const i = el("img"); i.src = a.href; i.style.cssText = "width:72px;height:72px;border-radius:50%"; a.append(i); imgs.append(a); }
+      if (br.banner){ const a = el("a"); a.href = `${base}/brand/${R.id}/banner.png`; a.download = ""; const i = el("img"); i.src = a.href; i.style.cssText = "height:72px;border-radius:6px"; a.append(i); imgs.append(a); }
+      db.append(imgs, el("small", null, "Toca una imagen para descargarla."));
+      const pre = el("div","req"); pre.append(el("b", null, "Descripción"), el("small", null, br.description)); pre.style.whiteSpace = "pre-line"; db.append(pre);
+      db.append(el("small", null, "La foto de perfil la subes tú: YouTube Studio → Personalización → Imagen → Foto. YouTube no deja cambiarla de otra forma."));
+      const b = el("button","btn primary", br.applied ? "Volver a aplicar en YouTube" : "Aplicar en YouTube (descripción, palabras clave y portada)"); b.type = "button";
+      const m = el("small","up-msg");
+      if (br.applied) m.textContent = "Aplicada: " + br.applied.applied.join(", ") + " · " + new Date(br.applied.at).toLocaleString("es-MX");
+      b.onclick = async () => {
+        b.disabled = true; m.style.color = ""; m.textContent = "Aplicando…";
+        try { const r = await fetch(`${base}/channels/${R.id}/brand/apply`, {method:"POST", headers:{"x-token": api.token}});
+          const t = await r.json().catch(() => ({})); if (!r.ok) throw new Error(t.detail || r.status);
+          m.style.color = "var(--ok)"; m.textContent = "Listo en YouTube: " + t.applied.join(", ");
+        } catch(e){ m.style.color = "var(--bad)"; m.textContent = e.message; } finally { b.disabled = false; }
+      };
+      const row = el("div","row"); row.append(b); db.append(row, m);
+    }
+  } catch(e){}
   // 3c) lo que dijo el Crítico
   if (o.reviews && o.reviews.length){
     const dr = sec("👁️ El Crítico vio estos videos");

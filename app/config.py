@@ -97,6 +97,7 @@ class ChannelConfig(BaseModel):
     site_url: str = ""               # sitio propio (cursos, guías) para la descripción
     site_cta: str = ""
     series_seeds: list[dict] = Field(default_factory=list)   # [{title, description, episodes:[...]}]
+    branding: dict = Field(default_factory=dict)   # {description, keywords} de la página del canal
 
 
 @lru_cache
