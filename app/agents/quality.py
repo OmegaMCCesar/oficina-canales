@@ -141,6 +141,13 @@ GUION:
     body_l = sc.body.lower()
     claims = [n for n in _re.findall(r"\d+[%k]?", sc.title.lower()) if n not in body_l] + \
              [wd for wd in ("kills", "mítico", "mythic", "inmortal", "100%", "garantizado") if wd in sc.title.lower() and wd not in body_l]
+    # cuántas kills hizo alguien solo lo puede decir una partida real vista por el Analista
+    kill_claim = _re.search(r"\d+\s*(kills?|asesinatos|bajas|muertes)|(kills?|asesinatos)\s*\d+", sc.title.lower())
+    if kill_claim:
+        from . import scout
+        rep = scout.report(cfg.id, job.idea.source_media) if job.idea.source_media else None
+        if job.idea.hero or not rep or not rep.get("kda"):
+            claims.append(kill_claim.group(0))
     if claims:
         r.title_keeps_promise = False
         issues.append(f"El título afirma cosas que el video no dice: {', '.join(claims)}")
