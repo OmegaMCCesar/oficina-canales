@@ -248,6 +248,11 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         log.info("[%s] guion de héroe listo: %s (%d palabras)", cfg.id, job.script.title, len(job.script.body.split()))
         return job
     if cfg.production.kind == "gameplay":
+        from pathlib import Path as _P
+        if not idea.source_media or not _P(idea.source_media).exists():
+            job.status, job.error = "rejected", "la partida grabada no existe (idea inventada o archivo borrado)"
+            save_job(job)
+            return job
         user = f"""{channel_brief(cfg)}
 {insights_block(cfg.id, 12)}
 IDEA: {idea.title} — {idea.angle}

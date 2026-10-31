@@ -1300,7 +1300,7 @@ async function renderActions(){
     if (u.enabled){
       const box = el("div","act"); const h = el("h3"); h.append(el("span", null, "💳 Gasto en Claude"));
       box.append(h, bar("Este mes (USD, estimado)", u.month_usd, 10),
-        el("small", null, `Hoy: $${u.today_usd.toFixed(2)} · ${u.month_calls} llamadas este mes. Sonnet piensa como Director y Crítica; Haiku hace el resto. Si se acaba el saldo, siguen los modelos gratis.`));
+        el("small", null, `Mes: $${u.month_usd.toFixed(3)} USD (~$${(u.month_usd*18.6).toFixed(2)} MXN) · hoy $${u.today_usd.toFixed(3)} · ${u.month_calls} llamadas. Sonnet piensa como Director y Crítica; Haiku hace el resto. Si se acaba el saldo, siguen los modelos gratis.`));
       actList.append(box);
     }
   } catch(e){}

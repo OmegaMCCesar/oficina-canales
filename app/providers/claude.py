@@ -92,8 +92,9 @@ def ask(system: str, user: str, schema: Type[T], image: Path | None = None, mode
         "messages": [{"role": "user", "content": content}],
         "tools": [{"name": "responder", "description": "Entrega tu respuesta final con esta estructura.",
                    "input_schema": _inline(schema.model_json_schema())}],
-        "tool_choice": {"type": "tool", "name": "responder"},
+        "tool_choice": {"type": "auto"},
     }
+    body["system"] = system + "\n\nEntrega tu respuesta final llamando a la herramienta `responder` (una sola vez)."
     r = httpx.post(API, json=body, timeout=180, headers={
         "x-api-key": key("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01", "content-type": "application/json"})
     if r.status_code >= 400:
@@ -101,9 +102,11 @@ def ask(system: str, user: str, schema: Type[T], image: Path | None = None, mode
     data = r.json()
     _record(model, data.get("usage", {}))
     block = next((b for b in data.get("content", []) if b.get("type") == "tool_use"), None)
-    if not block:
-        raise RuntimeError("Claude no devolvió la estructura")
-    return schema.model_validate(block["input"])
+    if block:
+        return schema.model_validate(block["input"])
+    from .text import _extract_json   # a veces responde con el JSON en texto
+    txt = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+    return schema.model_validate(_extract_json(txt))
 
 
 def usage_summary() -> dict:

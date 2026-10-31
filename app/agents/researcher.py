@@ -71,8 +71,8 @@ IDEAS PENDIENTES (no las repitas): {pending_ideas[-20:]}
 """
     if cfg.production.kind == "gameplay":
         user += f"""
-PARTIDAS GRABADAS DISPONIBLES (cada idea de short/long DEBE referenciar una en source_media):
-{inbox or '(ninguna nueva: propón solo 2-3 ideas de guía/análisis sin video y pide material)'}
+PARTIDAS GRABADAS DISPONIBLES (cada idea DEBE copiar EXACTA una de estas rutas en source_media; no inventes partidas):
+{inbox or '(ninguna: no propongas ideas de partidas; devuelve la lista vacía)'}
 """
 
     fallback = ResearchOut(ideas=[
@@ -84,9 +84,15 @@ PARTIDAS GRABADAS DISPONIBLES (cada idea de short/long DEBE referenciar una en s
 
     out = ask_json(SYSTEM, user, ResearchOut, fallback=fallback)
     result: list[Idea] = []
+    real = set(inbox)
     for io in out.ideas:
         if any(b.lower() in io.title.lower() for b in cfg.banned_topics):
             continue
+        if cfg.production.kind == "gameplay":
+            if io.source_media not in real:
+                io.source_media = None          # la IA no puede inventar partidas
+            if not io.source_media:
+                continue                        # sin grabación real no es idea de gameplay (los héroes van aparte)
         idea = Idea(channel_id=cfg.id, title=io.title, angle=io.angle,
                     format="long" if io.format == "long" else "short",
                     search_intent=io.search_intent, score=io.score, source_media=io.source_media)

@@ -107,7 +107,7 @@ Aprueba las que merecen producirse ahora (máximo {max(0, cfg.cadence.max_queue_
         approvals=[Approval(idea_id=i.id, approve=(k < min(room, 3)), priority=k + 1,
                             reason="dry-run: aprobadas las de mayor score" if k < 3 else "dry-run: cola llena")
                    for k, i in enumerate(sorted(candidates, key=lambda x: -x.score))],
-        requests_to_human=["Graba 2-3 partidas nuevas esta semana"] if cfg.production.kind == "gameplay" else [],
+        requests_to_human=[],
         rationale="dry-run",
     )
     system = SYSTEM + ("\nEste canal es 100% GENERADO por IA (imágenes y voz): el humano NO graba nada. "
@@ -121,7 +121,8 @@ Aprueba las que merecen producirse ahora (máximo {max(0, cfg.cadence.max_queue_
         idea = by_id.get(a.idea_id)
         if not idea:
             continue
-        if cfg.production.kind == "gameplay" and not idea.source_media and not idea.facts:
+        from pathlib import Path as _P
+        if cfg.production.kind == "gameplay" and not idea.facts and (not idea.source_media or not _P(idea.source_media).exists()):
             rejected[idea.id] = "sin partida grabada: no se puede producir"
             if "Graba partidas nuevas para: " + idea.title not in out.requests_to_human:
                 out.requests_to_human.append("Graba partidas nuevas para: " + idea.title)
