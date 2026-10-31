@@ -102,14 +102,29 @@ def sync(cfg) -> list[Path]:
     fid = folders[0]["id"]
     files = svc.files().list(q=f"'{fid}' in parents and trashed=false and (mimeType contains 'video/')",
                              fields="files(id,name,size,createdTime,mimeType)", orderBy="createdTime desc", pageSize=50).execute().get("files", [])
-    done = {d["id"] for d in store().list(cfg.id, "drive_imports")}
+    from ..db import jobs
+    used = {j.idea.source_media for j in jobs(cfg.id) if j.idea.source_media}
+    done = set()
+    for d in store().list(cfg.id, "drive_imports"):
+        p = d.get("path")
+        # el disco de Render se borra en cada reinicio/deploy: si la partida se bajó pero ningún video la usó
+        # y el archivo ya no está, se vuelve a bajar
+        if d.get("status") == "descargada" and p and not Path(p).exists() and p not in used:
+            continue
+        # "muy grande" se reintenta si César reemplazó el archivo por uno más chico (mismo id, otro tamaño)
+        if d.get("status") == "muy grande" and int(next((x.get("size") or 0 for x in files if x["id"] == d["id"]), 0)) != d.get("size"):
+            continue
+        done.add(d["id"])
     pending = [f for f in files if f["id"] not in done]
     log.info("[%s] drive: carpeta con %d video(s): %s", cfg.id, len(files),
              [(x["name"], int(x.get("size") or 0) // 1_000_000) for x in files])
     if not pending:
-        _note(cfg, f"{len(files)} video(s) en la carpeta, todos ya usados", files=len(files))
+        big = [x["name"] for x in files if int(x.get("size") or 0) > MAX_BYTES]
+        _note(cfg, f"{len(files)} video(s) en la carpeta, todos ya usados" +
+              (f"; muy grandes para bajar (máx 2.5 GB): {', '.join(big)}" if big else ""), files=len(files))
         return []
-    f = pending[0]
+    fit = [x for x in pending if int(x.get("size") or 0) <= MAX_BYTES]
+    f = fit[0] if fit else pending[0]
     size = int(f.get("size") or 0)
     if size > MAX_BYTES:
         _note(cfg, f"«{f['name']}» es muy grande ({size // 1_000_000} MB)")
