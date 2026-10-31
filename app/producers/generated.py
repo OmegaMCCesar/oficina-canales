@@ -393,7 +393,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     except Exception as e:
         log.warning("sin música (%s)", e)
     out = compose.final_mix(silent, voice, music, ass, folder / "final.mp4", total,
-                            preset="veryfast" if portrait else "superfast",
+                            preset="veryfast" if portrait else "ultrafast",
                             size=(1080, 1920) if portrait else (1920, 1080))
 
     for pat in ("web_*", "icon_*"):

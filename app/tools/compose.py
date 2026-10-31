@@ -183,7 +183,7 @@ def final_mix(video: Path, voice: Path, music: Path | None, ass: Path, out: Path
     """size: salida final (p. ej. 1080p). YouTube da más calidad a videos de 1080p que a 720p; se escala ANTES de
     dibujar los subtítulos para que el texto salga nítido."""
     fontsdir = str(FONT_PATH.parent)
-    scale = f"scale={size[0]}:{size[1]}:flags=lanczos," if size else ""
+    scale = f"scale={size[0]}:{size[1]}:flags=bilinear," if size else ""
     vf = f"[0:v]{scale}subtitles={ass}:fontsdir={fontsdir}[v]"
     if music:
         fc = (f"{vf};[1:a]apad,asplit=2[vo][sc];[2:a]volume={music_vol}[mu];"
