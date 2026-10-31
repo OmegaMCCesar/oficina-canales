@@ -65,10 +65,20 @@ def _creds():
 def status() -> dict:
     try:
         acc = get_secret("drive", "account") or {}
+        last = store().get("gaming", "drive_status", "last") or {}
         return {"connected": bool(get_secret("drive", "google")), "email": acc.get("emailAddress", ""),
-                "folder": settings().GAMING_DRIVE_FOLDER}
+                "folder": settings().GAMING_DRIVE_FOLDER, "last": last.get("msg", ""), "last_at": last.get("at", "")}
     except Exception:
         return {"connected": False, "email": "", "folder": settings().GAMING_DRIVE_FOLDER}
+
+
+def _note(cfg, msg: str, **extra) -> None:
+    """Deja constancia (log + Firestore) de qué pasó en la última revisión de Drive."""
+    log.info("[%s] drive: %s %s", cfg.id, msg, extra or "")
+    try:
+        store().put(cfg.id, "drive_status", "last", {"msg": msg, **extra, "at": datetime.now(timezone.utc).isoformat()})
+    except Exception:
+        pass
 
 
 def sync(cfg) -> list[Path]:
@@ -77,6 +87,7 @@ def sync(cfg) -> list[Path]:
         return []
     creds = _creds()
     if not creds:
+        _note(cfg, "Drive no está conectado")
         return []
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaIoBaseDownload
@@ -85,6 +96,7 @@ def sync(cfg) -> list[Path]:
     folders = svc.files().list(q=f"mimeType='application/vnd.google-apps.folder' and name='{name}' and trashed=false",
                                fields="files(id,name)", pageSize=5).execute().get("files", [])
     if not folders:
+        _note(cfg, f"no encontré la carpeta «{settings().GAMING_DRIVE_FOLDER}»")
         add_activity(cfg.id, "humano", f"César: crea en tu Drive una carpeta llamada «{settings().GAMING_DRIVE_FOLDER}» y sube ahí tus partidas", kind="ask")
         return []
     fid = folders[0]["id"]
@@ -92,11 +104,15 @@ def sync(cfg) -> list[Path]:
                              fields="files(id,name,size,createdTime,mimeType)", orderBy="createdTime desc", pageSize=50).execute().get("files", [])
     done = {d["id"] for d in store().list(cfg.id, "drive_imports")}
     pending = [f for f in files if f["id"] not in done]
+    log.info("[%s] drive: carpeta con %d video(s): %s", cfg.id, len(files),
+             [(x["name"], int(x.get("size") or 0) // 1_000_000) for x in files])
     if not pending:
+        _note(cfg, f"{len(files)} video(s) en la carpeta, todos ya usados", files=len(files))
         return []
     f = pending[0]
     size = int(f.get("size") or 0)
     if size > MAX_BYTES:
+        _note(cfg, f"«{f['name']}» es muy grande ({size // 1_000_000} MB)")
         store().put(cfg.id, "drive_imports", f["id"], {"id": f["id"], "name": f["name"], "status": "muy grande", "size": size})
         add_activity(cfg.id, "humano", f"«{f['name']}» pesa {size // 1_000_000} MB; súbela recortada (máx 2.5 GB)", kind="ask")
         return []
@@ -113,4 +129,5 @@ def sync(cfg) -> list[Path]:
     store().put(cfg.id, "drive_imports", f["id"], {"id": f["id"], "name": f["name"], "status": "descargada", "size": size,
                                                   "path": str(out), "at": datetime.now(timezone.utc).isoformat()})
     add_activity(cfg.id, "humano", f"Partida lista para editar: {f['name']}", to="investigador", kind="ok")
+    _note(cfg, f"descargué «{f['name']}» ({size // 1_000_000} MB)", pending=len(pending) - 1)
     return [out]

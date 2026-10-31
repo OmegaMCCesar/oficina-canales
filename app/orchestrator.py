@@ -134,7 +134,16 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
 
     if cfg.production.kind == "gameplay":
         from .tools import gdrive
-        _safe(gdrive.sync, cfg)
+        act(cfg.id, "humano", "Revisando tu carpeta de Drive…")
+        try:
+            got = gdrive.sync(cfg)
+        except Exception as e:
+            log.exception("[%s] Drive falló", cfg.id)
+            gdrive._note(cfg, f"error: {str(e)[:160]}")
+            act(cfg.id, "humano", f"No pude leer tu Drive: {str(e)[:90]}", kind="bad")
+            got = []
+        if not got:
+            act(cfg.id, "humano", "Drive: " + (gdrive.status().get("last") or "sin partidas nuevas"))
         act(cfg.id, "investigador", "Investigando un héroe en la wiki (historia y habilidades)…")
         _safe(hero_research.run, cfg)
     act(cfg.id, "investigador", "Buscando temas: comentarios, tendencias y memoria del canal…")

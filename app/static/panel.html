@@ -1450,6 +1450,7 @@ async function renderOffice(R, box, base){
     const dd = sec(`📱 Partidas desde tu cel · ${o.drive.connected ? "Drive conectado" : "sin conectar"}`, !o.drive.connected);
     dd.append(el("small", null, `1) En tu Drive crea la carpeta «${o.drive.folder}». 2) Al terminar de jugar, abre la app de Google Drive → Subir → tu grabación. 3) En el siguiente ciclo la oficina la descarga, encuentra los mejores momentos y arma los videos.`));
     if (o.drive.connected) dd.append(el("small", null, "Conectado con " + (o.drive.email || "tu cuenta") + " (solo lectura)."));
+    if (o.drive.last) dd.append(el("small", null, "Última revisión: " + o.drive.last));
     const a = el("a", "btn", o.drive.connected ? "Volver a conectar Drive" : "Conectar Google Drive");
     a.href = `${base}/oauth/drive?t=${encodeURIComponent(api.token)}`; a.target = "_blank"; a.rel = "noopener";
     const row = el("div","row"); row.append(a); dd.append(row);
