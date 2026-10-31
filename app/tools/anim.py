@@ -282,7 +282,8 @@ def render(template: str, params: dict, seconds: float, out: Path, w: int, h: in
         else:
             cmd = ["-i", str(part), "-vf", f"tpad=stop_mode=clone:stop_duration={seconds - REAL_MAX + 0.5:.2f}",
                    "-t", f"{seconds:.2f}", "-c:v", "libx264", "-preset", "superfast", "-pix_fmt", "yuv420p", str(out)]
-        r = subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-threads", "1", *cmd], capture_output=True)
+        from .ffmpeg import lowmem
+        r = subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-threads", "1", *lowmem(cmd)], capture_output=True)
         if r.returncode != 0:
             raise RuntimeError(r.stderr.decode()[-300:])
     finally:
@@ -303,7 +304,8 @@ def _render(template: str, params: dict, seconds: float, out: Path, w: int, h: i
     frames = max(1, int(seconds * fps))
     proc = subprocess.Popen([FFMPEG, "-y", "-loglevel", "error", "-threads", "1", "-f", "rawvideo", "-pix_fmt", "rgb24",
                              "-s", f"{w}x{h}", "-r", str(fps), "-i", "-", "-r", "30", "-c:v", "libx264", "-preset",
-                             "veryfast", "-pix_fmt", "yuv420p", str(out)], stdin=subprocess.PIPE)
+                             "veryfast", "-pix_fmt", "yuv420p", "-threads", "1",
+                             "-x264-params", "threads=1:lookahead-threads=1:rc-lookahead=8", str(out)], stdin=subprocess.PIPE)
     try:
         for i in range(frames):
             t = i / fps

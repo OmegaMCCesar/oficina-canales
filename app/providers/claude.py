@@ -81,6 +81,15 @@ def _inline(schema: dict) -> dict:
 
 def ask(system: str, user: str, schema: Type[T], image: Path | None = None, model_tier: str | None = None,
         max_tokens: int = 8000) -> T:
+    from pydantic import ValidationError
+    try:
+        return _ask(system, user, schema, image, model_tier, max_tokens)
+    except ValidationError as e:   # casi bien: se le devuelve el error para que corrija (una vez)
+        fix = f"{user}\n\nOJO: tu respuesta anterior no cumplió la estructura: {str(e)[:600]}. Corrígela."
+        return _ask(system, fix, schema, image, model_tier, max_tokens)
+
+
+def _ask(system: str, user: str, schema: Type[T], image: Path | None, model_tier: str | None, max_tokens: int) -> T:
     model = MODELS[model_tier or tier.get()]
     content: list = []
     if image:

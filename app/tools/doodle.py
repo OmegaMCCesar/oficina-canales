@@ -769,7 +769,7 @@ def render(shots: list[dict], seconds: float, out: Path, w: int, h: int, fps: in
     lst.write_text("\n".join(lines) + "\n")
     try:
         r = subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-threads", "1", "-f", "concat", "-safe", "0", "-i", lst.name,
-                            "-vf", f"fps={fps},format=yuv420p", "-t", f"{seconds:.2f}", "-c:v", "libx264", "-preset", "superfast",
+                            "-vf", f"fps={fps},format=yuv420p", "-t", f"{seconds:.2f}", "-c:v", "libx264", "-preset", "superfast", "-threads", "1", "-x264-params", "threads=1:rc-lookahead=8",
                             out.name], cwd=str(folder), capture_output=True)
         if r.returncode != 0:
             raise RuntimeError(r.stderr.decode()[-300:])

@@ -26,8 +26,23 @@ def font(size: int):
         return ImageFont.load_default()
 
 
+LOWMEM = ["-threads", "1", "-filter_threads", "1", "-filter_complex_threads", "1"]
+X264_LOWMEM = ["-x264-params", "threads=1:lookahead-threads=1:rc-lookahead=8:sliced-threads=0"]
+
+
+def lowmem(args: list[str]) -> list[str]:
+    """Render gratis = 512 MB. Por defecto ffmpeg/x264 abre un hilo (y un búfer de cuadros) por núcleo del host,
+    que son muchos: a 1080p eso revienta la memoria. Aquí todo va en 1 hilo y con poca anticipación."""
+    out = list(args)
+    if out and not out[-1].startswith("-"):
+        tail = out.pop()
+        extra = ["-threads", "1"] + (X264_LOWMEM if "libx264" in out else [])
+        out += extra + [tail]
+    return ["-filter_threads", "1", "-filter_complex_threads", "1"] + out
+
+
 def _run(args: list[str]) -> None:
-    r = subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-threads", "1", *args], capture_output=True, text=True)
+    r = subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-threads", "1", *lowmem(args)], capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"ffmpeg: {r.stderr[-800:]}")
 
