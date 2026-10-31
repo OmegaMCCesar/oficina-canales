@@ -76,7 +76,12 @@ def run_channel(channel_id: str, publish: bool = True) -> dict:
         act(channel_id, "director", "Ya hay un ciclo en marcha; espera a que termine", kind="ask")
         return {"channel": channel_id, "status": "busy"}
     try:
-        return _run_guarded(channel_id, publish)
+        # hilo propio: la prioridad baja (nice) se queda en este hilo y no en los que atienden al panel
+        out: dict = {}
+        t = threading.Thread(target=lambda: out.update(_run_guarded(channel_id, publish) or {}), name=f"ciclo-{channel_id}")
+        t.start()
+        t.join()
+        return out
     finally:
         _RUN_LOCK.release()
 
