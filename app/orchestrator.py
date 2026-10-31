@@ -82,7 +82,14 @@ def run_channel(channel_id: str, publish: bool = True) -> dict:
 
 
 def _run_guarded(channel_id: str, publish: bool) -> dict:
+    import os
     import threading
+    # El ciclo corre con prioridad baja (en Linux "nice" es por hilo y lo heredan los ffmpeg que lance):
+    # con 0.15 de CPU en Render, así el panel sigue respondiendo mientras se renderiza.
+    try:
+        os.nice(15)
+    except Exception:
+        pass
     stop = threading.Event()
     threading.Thread(target=_keepalive, args=(stop,), daemon=True).start()
     try:
