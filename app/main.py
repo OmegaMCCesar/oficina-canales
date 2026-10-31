@@ -16,6 +16,8 @@ from .config import load_channels, settings
 from .db import insights, jobs, metrics, store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+from .memory import limit_arenas  # noqa: E402
+limit_arenas()
 app = FastAPI(title="Oficina de Canales")
 # El panel 3D puede vivir en otro dominio (artifact); los datos siguen protegidos por x-token.
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"])

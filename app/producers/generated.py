@@ -343,6 +343,9 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
                                      card_text=scn.get("on_screen", ""))
                 compose.image_clip(img, secs, clip, w, h, k, lumi=anim.lumi_path(lumi))
         clips.append(clip)
+        if k % 4 == 3:
+            from ..memory import trim
+            trim()      # devolver al sistema la memoria de las imágenes ya usadas
         if k == 0 and cesar_seg:
             cc = folder / "clip_cesar.mp4"
             if p.style == "doodle":
@@ -362,6 +365,8 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
                                 sub=sc.comment_question or p.brand_name, logo=compose.ASSETS / "brand" / f"{cfg.id}.png")
         clips.append(compose.image_clip(card, 5.0, folder / "clip_end.mp4", w, h, 1))
         total += 5.0
+    from ..memory import trim
+    trim()          # antes del armado final (el paso que más memoria usa en ffmpeg)
     silent = ffmpeg.concat(clips, folder / "video_mudo.mp4")
 
     # 4) texto en pantalla + capítulos

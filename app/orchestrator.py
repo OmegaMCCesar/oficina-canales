@@ -223,6 +223,8 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
                     job = _safe(critic.run, cfg, job) or job
                     if job.status == "produced":
                         act(cfg.id, "critico", "Aprobado para miniatura", to="miniaturas")
+            from .memory import trim
+            trim()
             if job.status == "produced":
                 act(cfg.id, "miniaturas", f"Diseñando 2 miniaturas: {title}")
                 job = _step(job, thumbnails.run, cfg)
