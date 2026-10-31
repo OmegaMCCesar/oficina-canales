@@ -237,6 +237,10 @@ def brief(rep: dict | None) -> str:
         return "(sin análisis de la partida)"
     ms = "\n".join(f"  - {m['start']:.0f}s → {m['end']:.0f}s · acción {m['action']}/10"
                    f"{' · ' + m['banner'] if m.get('banner') else ''} · {m['what'][:160]}" for m in rep["moments"])
-    return (f"juego: {rep.get('game') or '?'} · héroe: {rep.get('hero') or 'sin identificar'} · "
-            f"resultado: {rep.get('result') or 'no visible'} · KDA: {rep.get('kda') or 'no visible'} · "
+    c = rep.get("cesar") or {}
+    hero, result, kda = c.get("hero") or rep.get("hero"), c.get("result") or rep.get("result"), c.get("kda") or rep.get("kda")
+    conf = " (CONFIRMADO POR CÉSAR, úsalo en títulos)" if c else ""
+    return (f"juego: {rep.get('game') or '?'} · héroe: {hero or 'sin identificar'} · "
+            f"resultado: {result or 'no visible'} · KDA: {kda or 'no visible'}{conf}"
+            + (f" · nota de César: {c['note']}" if c.get("note") else "") + " · "
             f"duración {int(rep['duration'] // 60)} min\n  resumen: {rep.get('summary', '')[:400]}\n  jugadas:\n{ms or '  (ninguna clara)'}")

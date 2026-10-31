@@ -360,6 +360,33 @@ def brand_apply(channel_id: str):
     return r
 
 
+@app.get("/channels/{channel_id}/recordings", dependencies=[Depends(auth)])
+def recordings(channel_id: str):
+    """Partidas de César con lo que vio el Analista (y lo que César confirmó)."""
+    docs = sorted(store().list(channel_id, "recordings"), key=lambda d: d.get("at", ""), reverse=True)[:8]
+    for d in docs:
+        d["key"] = __import__("app.agents.scout", fromlist=["key_for"]).key_for(d["path"])
+        d["videos"] = [{"title": j.script.title if j.script else j.idea.title, "status": j.status}
+                       for j in jobs(channel_id) if j.idea.source_media == d["path"]]
+    return docs
+
+
+@app.post("/channels/{channel_id}/recordings/{key}", dependencies=[Depends(auth)])
+def recording_confirm(channel_id: str, key: str, body: dict):
+    """César confirma héroe, resultado y KDA de su partida: con eso ya se puede titular honestamente."""
+    d = store().get(channel_id, "recordings", key)
+    if not d:
+        raise HTTPException(404, "No encontré esa partida")
+    res = str(body.get("result", "")).strip().lower()
+    c = {"hero": str(body.get("hero", "")).strip()[:40], "result": res if res in ("victoria", "derrota") else "",
+         "kda": str(body.get("kda", "")).strip()[:12], "note": str(body.get("note", "")).strip()[:200]}
+    d["cesar"] = {k: v for k, v in c.items() if v}
+    store().put(channel_id, "recordings", key, d)
+    add_activity(channel_id, "investigador", f"César confirmó su partida: {c['hero'] or '?'} · {c['result'] or '?'}"
+                 + (f" · {c['kda']}" if c["kda"] else "") + ". En el siguiente ciclo propongo los videos.", to="director", kind="ok")
+    return {"ok": True}
+
+
 @app.get("/usage", dependencies=[Depends(auth)])
 def usage():
     """Gasto estimado en Claude (hoy y en el mes)."""

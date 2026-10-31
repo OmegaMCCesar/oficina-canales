@@ -98,7 +98,7 @@ ESTADO DE LA COLA:
 - Máximo de listos permitido: {cfg.cadence.max_queue_ready}
 
 IDEAS CANDIDATAS:
-{chr(10).join(f'- id={i.id} | {i.format} | score={i.score} | {i.title} — {i.angle}' + (f' | media={i.source_media}' if i.source_media else '') for i in candidates) or '- (ninguna)'}
+{chr(10).join(f'- id={i.id} | {i.format} | score={i.score} | {i.title} — {i.angle}' + (f' | media={i.source_media}{chr(10)}    LO QUE SE VIO EN LA PARTIDA: ' + __import__('app.agents.scout', fromlist=['brief']).brief(__import__('app.agents.scout', fromlist=['report']).report(cfg.id, i.source_media)).replace(chr(10), ' ') if i.source_media else '') for i in candidates) or '- (ninguna)'}
 
 Aprueba las que merecen producirse ahora (máximo {max(0, cfg.cadence.max_queue_ready - len(ready_queue) - len(in_progress))}).
 """

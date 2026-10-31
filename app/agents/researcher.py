@@ -46,9 +46,12 @@ def _gaming_inbox_files(cfg: ChannelConfig) -> list[str]:
     inbox = Path(settings().GAMING_INBOX)
     if not inbox.exists():
         return []
-    used = {j.idea.source_media for j in jobs(cfg.id) if j.idea.source_media}
+    from collections import Counter
+    # una partida buena da para varios videos (shorts de distintas jugadas + un largo); los rechazados no cuentan
+    used = Counter(j.idea.source_media for j in jobs(cfg.id)
+                   if j.idea.source_media and j.status not in ("rejected", "failed"))
     files = [p for p in sorted(inbox.iterdir()) if p.suffix.lower() in (".mp4", ".mov", ".mkv", ".webm", ".3gp")]
-    return [str(p) for p in files if str(p) not in used]
+    return [str(p) for p in files if used[str(p)] < 3]
 
 
 def run(cfg: ChannelConfig) -> list[Idea]:
@@ -78,7 +81,7 @@ PARTIDAS GRABADAS DISPONIBLES (cada idea DEBE copiar EXACTA una de estas rutas e
 Debajo de cada una está lo que el Analista VIO en ella: el héroe, el resultado y las jugadas del título deben salir
 de ahí (si el resultado no es visible, no lo pongas en el título). Con una partida buena propón 1-3 shorts (una
 jugada cada uno) y, si dura 8+ min con varias jugadas, 1 largo "partida comentada":
-{chr(10).join(f"- {p}{chr(10)}  {scout.brief(scout.report(cfg.id, p))}" for p in inbox) or '(ninguna: no propongas ideas de partidas; devuelve la lista vacía)'}
+{chr(10).join(f"- {p}{chr(10)}  {scout.brief(scout.report(cfg.id, p))}{chr(10)}  ya usadas: {[j.idea.title for j in jobs(cfg.id) if j.idea.source_media == p and j.status not in ('rejected', 'failed')]}" for p in inbox) or '(ninguna: no propongas ideas de partidas; devuelve la lista vacía)'}
 """
 
     fallback = ResearchOut(ideas=[

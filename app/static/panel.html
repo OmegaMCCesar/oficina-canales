@@ -1479,6 +1479,39 @@ async function renderOffice(R, box, base){
       const row = el("div","row"); row.append(b); db.append(row, m);
     }
   } catch(e){}
+  // 3b3) partidas que vio el Analista (César confirma héroe y resultado)
+  if (R.id === "gaming"){
+    try {
+      const recs = await getJSON(`/channels/${R.id}/recordings`);
+      if (recs.length){
+        const pending = recs.filter(r => !r.cesar && !r.error).length;
+        const dp = sec(`🎮 Tus partidas · ${recs.length}` + (pending ? ` · ${pending} por confirmar` : ""), pending > 0);
+        dp.append(el("small", null, "El Analista vio tu grabación. Confírmale el héroe y el resultado: sin eso no se pueden poner en el título (regla de honestidad)."));
+        for (const r of recs){
+          const c = el("div","req"), me = r.cesar || {};
+          c.append(el("b", null, r.name + (r.duration ? ` · ${Math.round(r.duration/60)} min` : "")));
+          if (r.error) c.append(el("small","warn", "No se pudo ver: " + r.error));
+          else c.append(el("small", null, `Vio: ${r.hero || "héroe sin identificar"} · ${r.result || "resultado no visible"}${r.kda ? " · KDA " + r.kda : ""} · ${(r.moments||[]).length} jugada(s)`));
+          for (const m of (r.moments||[]).slice(0,4)) c.append(el("small", null, `• ${Math.floor(m.start/60)}:${String(Math.floor(m.start%60)).padStart(2,"0")} ${m.banner ? "[" + m.banner + "] " : ""}${m.what.slice(0,90)}`));
+          for (const v of (r.videos||[])) c.append(el("small", null, `🎬 ${v.title} (${v.status})`));
+          const hero = el("input"); hero.placeholder = "Héroe que jugaste"; hero.value = me.hero || r.hero || "";
+          const res = el("select"); for (const [v,t] of [["","¿Resultado?"],["victoria","Victoria"],["derrota","Derrota"]]){ const o = el("option", null, t); o.value = v; res.append(o); } res.value = me.result || r.result || "";
+          const kda = el("input"); kda.placeholder = "KDA (ej. 9/2/7)"; kda.value = me.kda || r.kda || ""; kda.style.maxWidth = "110px";
+          const note = el("input"); note.placeholder = "Nota (opcional): qué pasó, rango…"; note.value = me.note || "";
+          const b = el("button","btn primary", me.hero ? "Actualizar" : "Confirmar"); b.type = "button";
+          const m = el("small","up-msg"); if (r.cesar) { m.style.color = "var(--ok)"; m.textContent = "Confirmado"; }
+          b.onclick = async () => {
+            try { const x = await fetch(`${base}/channels/${R.id}/recordings/${r.key}`, {method:"POST", headers:{"x-token": api.token, "content-type":"application/json"}, body: JSON.stringify({hero: hero.value, result: res.value, kda: kda.value, note: note.value})});
+              if (!x.ok){ const t = await x.json().catch(() => ({})); throw new Error(t.detail || x.status); }
+              m.style.color = "var(--ok)"; m.textContent = "¡Gracias! En el siguiente ciclo salen los videos.";
+            } catch(e){ m.style.color = "var(--bad)"; m.textContent = e.message; }
+          };
+          const row1 = el("div","row"); row1.append(hero, res, kda); const row2 = el("div","row"); row2.append(note, b);
+          c.append(row1, row2, m); dp.append(c);
+        }
+      }
+    } catch(e){}
+  }
   // 3c) lo que dijo el Crítico
   if (o.reviews && o.reviews.length){
     const dr = sec("👁️ El Crítico vio estos videos");

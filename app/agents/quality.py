@@ -146,7 +146,7 @@ GUION:
     if kill_claim:
         from . import scout
         rep = scout.report(cfg.id, job.idea.source_media) if job.idea.source_media else None
-        if job.idea.hero or not rep or not rep.get("kda"):
+        if job.idea.hero or not rep or not (rep.get("kda") or (rep.get("cesar") or {}).get("kda")):
             claims.append(kill_claim.group(0))
     if claims:
         r.title_keeps_promise = False
