@@ -23,8 +23,6 @@ OPENAI_COMPAT = [
     ("mistral", "MISTRAL_API_KEY", "https://api.mistral.ai/v1", "mistral-medium-latest"),
     # cada modelo de Groq tiene su propio límite por minuto: más modelos = más capacidad gratis
     ("groq-20b", "GROQ_API_KEY", "https://api.groq.com/openai/v1", "openai/gpt-oss-20b"),
-    ("groq-qwen", "GROQ_API_KEY", "https://api.groq.com/openai/v1", "qwen/qwen3-32b"),
-    ("groq-kimi", "GROQ_API_KEY", "https://api.groq.com/openai/v1", "moonshotai/kimi-k2-instruct"),
 ]
 
 

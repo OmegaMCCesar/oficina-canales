@@ -237,6 +237,24 @@ DATOS VERIFICADOS:
                   cta=out.cta, cta_end=out.cta, description=desc, tags=out.tags, scenes=scenes)
 
 
+def _fit_highlights(hl: list, rep: dict, max_total: float) -> list:
+    """Cada jugada debe caer dentro de un tramo que el Analista vio de verdad; se recorta a ese tramo."""
+    moments = rep.get("moments", [])
+    out, total = [], 0.0
+    for h in sorted(hl, key=lambda x: x.start):
+        m = next((m for m in moments if h.start < m["end"] and h.end > m["start"]), None)
+        if not m:
+            continue
+        h.start, h.end = max(h.start, m["start"] - 3), min(max(h.end, h.start + 4), m["end"] + 3, rep["duration"])
+        if h.end - h.start < 3 or (out and h.start < out[-1].end):
+            continue
+        if total + (h.end - h.start) > max_total:
+            break
+        out.append(h)
+        total += h.end - h.start
+    return out
+
+
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     idea = job.idea
     if idea.facts:
@@ -253,18 +271,29 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
             job.status, job.error = "rejected", "la partida grabada no existe (idea inventada o archivo borrado)"
             save_job(job)
             return job
+        from . import scout
+        rep = scout.report(cfg.id, idea.source_media)
+        seen = rep and rep.get("moments")
         user = f"""{channel_brief(cfg)}
 {insights_block(cfg.id, 12)}
 IDEA: {idea.title} — {idea.angle}
 {brief(job)}
 FORMATO: {idea.format} (short máx {cfg.production.short_max_seconds}s)
-Analiza el video adjunto."""
+""" + (f"""LO QUE EL ANALISTA VIO EN LA PARTIDA (usa SOLO estos tramos; start/end dentro de ellos; no inventes kills,
+héroes ni resultado que no estén aquí):
+{scout.brief(rep)}""" if seen else "Analiza el video adjunto.")
         fallback = GameplayOut(
             title=idea.title[:70], hook="Mira esto",
             highlights=[Highlight(start=5, end=20, caption="Triple kill", voiceover="Aquí entro por atrás y nadie me ve venir.")],
             cta="Sígueme para más jugadas", description=f"{idea.title}\n#MLBB", tags=["mlbb", "mobile legends"],
         )
-        out = ask_json(SYSTEM_GAME, user, GameplayOut, fallback=fallback, video_path=idea.source_media)
+        out = ask_json(SYSTEM_GAME, user, GameplayOut, fallback=fallback, video_path=None if seen else idea.source_media)
+        if seen:
+            out.highlights = _fit_highlights(out.highlights, rep, cfg.production.short_max_seconds if idea.format == "short" else 600)
+            if not out.highlights:
+                job.status, job.error = "rejected", "ninguna jugada del guion cae en lo que el Analista vio en la partida"
+                save_job(job)
+                return job
         job.script = Script(title=out.title, hook=out.hook, body=" ".join(h.voiceover for h in out.highlights),
                             cta=out.cta, description=out.description, tags=out.tags,
                             highlights=[h.model_dump() for h in out.highlights])

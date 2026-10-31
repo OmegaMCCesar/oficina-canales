@@ -156,6 +156,8 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
             got = []
         if not got:
             act(cfg.id, "humano", "Drive: " + (gdrive.status().get("last") or "sin partidas nuevas"))
+        from .agents import scout
+        _safe(scout.run, cfg)
         act(cfg.id, "investigador", "Investigando un héroe en la wiki (historia y habilidades)…")
         _safe(hero_research.run, cfg)
     act(cfg.id, "investigador", "Buscando temas: comentarios, tendencias y memoria del canal…")

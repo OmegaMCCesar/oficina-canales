@@ -56,7 +56,10 @@ def run(cfg: ChannelConfig) -> list[Idea]:
     published = [j.idea.title for j in jobs(cfg.id) if j.status in ("scheduled", "published")]
     queued = [j.idea.title for j in jobs(cfg.id) if j.status not in ("rejected", "failed", "published")]
     pending_ideas = [i.title for i in stored_ideas(cfg.id)]
+    from . import scout
     inbox = _gaming_inbox_files(cfg) if cfg.production.kind == "gameplay" else []
+    # solo partidas que el Analista ya vio y en las que encontró jugadas
+    inbox = [p for p in inbox if (scout.report(cfg.id, p) or {}).get("moments")]
 
     user = f"""{channel_brief(cfg)}
 
@@ -71,8 +74,11 @@ IDEAS PENDIENTES (no las repitas): {pending_ideas[-20:]}
 """
     if cfg.production.kind == "gameplay":
         user += f"""
-PARTIDAS GRABADAS DISPONIBLES (cada idea DEBE copiar EXACTA una de estas rutas en source_media; no inventes partidas):
-{inbox or '(ninguna: no propongas ideas de partidas; devuelve la lista vacía)'}
+PARTIDAS GRABADAS DISPONIBLES (cada idea DEBE copiar EXACTA una de estas rutas en source_media; no inventes partidas).
+Debajo de cada una está lo que el Analista VIO en ella: el héroe, el resultado y las jugadas del título deben salir
+de ahí (si el resultado no es visible, no lo pongas en el título). Con una partida buena propón 1-3 shorts (una
+jugada cada uno) y, si dura 8+ min con varias jugadas, 1 largo "partida comentada":
+{chr(10).join(f"- {p}{chr(10)}  {scout.brief(scout.report(cfg.id, p))}" for p in inbox) or '(ninguna: no propongas ideas de partidas; devuelve la lista vacía)'}
 """
 
     fallback = ResearchOut(ideas=[
