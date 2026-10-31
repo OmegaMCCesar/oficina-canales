@@ -125,6 +125,9 @@ def _ask_once(system: str, user: str, schema: Type[T], video_path: str | None, n
     chain: list[tuple[str, callable]] = []
     if video_path and key("GEMINI_API_KEY"):
         chain.append(("gemini", lambda: _gemini(system, user, schema, video_path)))   # solo Gemini ve video
+    if not video_path and key("ANTHROPIC_API_KEY"):
+        from . import claude   # cerebro de pago: Sonnet (Director/Crítica) o Haiku (resto)
+        chain.append((f"claude-{claude.tier.get()}", lambda: claude.ask(system, user, schema)))
     if not video_path:
         for name, env, base, model in OPENAI_COMPAT:
             if key(env):

@@ -29,7 +29,7 @@ def client():
 
 
 def ask_json(system: str, user: str, schema: Type[T], fallback: T | None = None,
-             video_path: str | None = None) -> T:
+             video_path: str | None = None, smart: bool = False) -> T:
     """JSON tipado desde el primer proveedor de texto disponible (Gemini, Groq, Cerebras, ...).
 
     En MODE=dry devuelve `fallback` sin llamar a nada.
@@ -38,7 +38,10 @@ def ask_json(system: str, user: str, schema: Type[T], fallback: T | None = None,
         if fallback is None:
             raise RuntimeError("MODE=dry requiere fallback para " + schema.__name__)
         return fallback
-    from .providers import text
+    from .providers import claude, text
+    if smart:   # decisiones del Director: Claude Sonnet (si hay llave de Anthropic)
+        with claude.smart():
+            return text.ask(system, user, schema, video_path)
     return text.ask(system, user, schema, video_path)
 
 

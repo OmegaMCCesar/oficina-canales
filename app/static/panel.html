@@ -1295,6 +1295,15 @@ document.addEventListener("visibilitychange", () => {
 const actModal = document.getElementById("actions"), actList = document.getElementById("actions-list"), actMsg = document.getElementById("actions-msg");
 async function renderActions(){
   actList.innerHTML = ""; actMsg.textContent = "Cargando estado…"; actMsg.style.color = "var(--muted)";
+  try {
+    const u = await getJSON("/usage");
+    if (u.enabled){
+      const box = el("div","act"); const h = el("h3"); h.append(el("span", null, "💳 Gasto en Claude"));
+      box.append(h, bar("Este mes (USD, estimado)", u.month_usd, 10),
+        el("small", null, `Hoy: $${u.today_usd.toFixed(2)} · ${u.month_calls} llamadas este mes. Sonnet piensa como Director y Crítica; Haiku hace el resto. Si se acaba el saldo, siguen los modelos gratis.`));
+      actList.append(box);
+    }
+  } catch(e){}
   for (const R of ROOMS){
     const box = document.createElement("div"); box.className = "act";
     let st = null; try { st = await getJSON(`/channels/${R.id}/status`); } catch(e){ actMsg.textContent = e.message; }

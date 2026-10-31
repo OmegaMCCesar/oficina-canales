@@ -74,7 +74,11 @@ def _cloudflare(system, user, img: bytes, schema):
 def ask(system: str, user: str, image: Path, schema: Type[T]) -> T:
     img = image.read_bytes()
     b64 = base64.b64encode(img).decode()
-    chain = [(n, (lambda e=e, b=b, m=m: _openai(e, b, m, system, user, b64, schema))) for n, e, b, m in OPENAI_VISION if key(e)]
+    chain = []
+    if key("ANTHROPIC_API_KEY"):
+        from . import claude
+        chain.append(("v-claude", lambda: claude.ask(system, user, schema, image=image, model_tier="smart")))
+    chain += [(n, (lambda e=e, b=b, m=m: _openai(e, b, m, system, user, b64, schema))) for n, e, b, m in OPENAI_VISION if key(e)]
     if key("GEMINI_API_KEY"):
         chain.append(("v-gemini", lambda: _gemini(system, user, img, schema)))
     if key("CLOUDFLARE_API_TOKEN"):

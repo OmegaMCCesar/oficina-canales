@@ -314,6 +314,13 @@ def money_link(channel_id: str, body: dict):
     return monetization.save_link(channel_id, product, url)
 
 
+@app.get("/usage", dependencies=[Depends(auth)])
+def usage():
+    """Gasto estimado en Claude (hoy y en el mes)."""
+    from .providers import claude
+    return claude.usage_summary()
+
+
 @app.get("/channels/{channel_id}/calendar", dependencies=[Depends(auth)])
 def calendar(channel_id: str):
     """Calendario del Director: qué video sale y cuándo, por qué, y si César ya lo aprobó."""

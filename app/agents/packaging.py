@@ -68,7 +68,7 @@ INTENCIÓN DE BÚSQUEDA: {idea.search_intent}"""
     ])
     try:
         out = ask_json(SYSTEM + "\n" + SYSTEM_PICK.replace("Eres el DIRECTOR del canal.", "Después, actuando como el DIRECTOR,"),
-                       user, PackOut, fallback=fallback)
+                       user, PackOut, fallback=fallback, smart=True)
         concepts = out.concepts[:3] or fallback.concepts
         pick = PackPick(chosen=out.chosen, reason=out.reason or "elegido por el Director")
     except Exception as e:

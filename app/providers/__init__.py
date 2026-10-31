@@ -111,6 +111,8 @@ def cooldown_for(err: Exception, quota: bool) -> float:
     s = str(err).lower()
     if "model_not_found" in s or "does not exist" in s or "no such model" in s or ("404" in s and "model" in s):
         return 86400
+    if "credit balance" in s or "billing" in s:
+        return 3 * 3600     # sin saldo en Anthropic: los modelos gratis toman el relevo
     if "request too large" in s or "context length" in s or "maximum context" in s:
         return 3600     # este prompt nunca cabrá en ese modelo
     if not quota:
@@ -127,4 +129,5 @@ def cooldown_for(err: Exception, quota: bool) -> float:
 
 def is_quota_error(e: Exception) -> bool:
     s = str(e).lower()
-    return any(t in s for t in ("429", "quota", "rate limit", "resource_exhausted", "exceeded", "insufficient"))
+    return any(t in s for t in ("429", "quota", "rate limit", "resource_exhausted", "exceeded", "insufficient",
+                                 "overloaded", "529", "credit balance"))

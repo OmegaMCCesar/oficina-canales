@@ -113,7 +113,7 @@ Aprueba las que merecen producirse ahora (máximo {max(0, cfg.cadence.max_queue_
     system = SYSTEM + ("\nEste canal es 100% GENERADO por IA (imágenes y voz): el humano NO graba nada. "
                        "Solo pídele algo si necesitas confirmar un dato técnico; si no, deja requests_to_human vacío."
                        if cfg.production.kind == "generated" else "")
-    out = ask_json(system, user, DirectorOut, fallback=fallback)
+    out = ask_json(system, user, DirectorOut, fallback=fallback, smart=True)
 
     approved_ids, rejected = [], {}
     by_id = {i.id: i for i in candidates}
@@ -187,7 +187,7 @@ PROBLEMAS DETECTADOS AUTOMÁTICAMENTE: {code_issues or 'ninguno'}"""
     fallback = AnimReview(approve=not code_issues, score=8 if not code_issues else 5, issues=code_issues,
                           summary="dry-run")
     try:
-        r = ask_json(SYSTEM_ANIM, user, AnimReview, fallback=fallback)
+        r = ask_json(SYSTEM_ANIM, user, AnimReview, fallback=fallback, smart=True)
     except Exception as e:
         r = AnimReview(approve=not code_issues, score=6, issues=code_issues, summary=f"revisión no disponible: {e}")
     if code_issues and r.approve and r.score < 7:
@@ -313,7 +313,7 @@ VIDEOS POR AGENDAR:
 {listing}"""
     fallback = ScheduleOut(slots=[], notes="dry-run")
     try:
-        out = ask_json(SYSTEM_SCHEDULE, user, ScheduleOut, fallback=fallback)
+        out = ask_json(SYSTEM_SCHEDULE, user, ScheduleOut, fallback=fallback, smart=True)
     except Exception as e:
         log.warning("[%s] calendario sin IA (%s); uso la cadencia", cfg.id, e)
         out = fallback
