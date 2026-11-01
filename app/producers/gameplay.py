@@ -28,7 +28,8 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     for k, h in enumerate(job.script.highlights):
         raw = ffmpeg.cut(src, h["start"], h["end"], folder / f"hl_{k:02}_raw.mp4", portrait, h.get("caption", ""))
         if h.get("voiceover"):
-            vo = tts.synthesize(h["voiceover"], folder / f"hl_{k:02}.mp3", cfg.production.voice, cfg.production.language)
+            from ..providers.voice import speak   # voz mexicana (edge) como el resto de los videos
+            vo, _ = speak(h["voiceover"], folder / f"hl_{k:02}.mp3", cfg.production.voice_gender, cfg.production.voice_rate)
             clip = ffmpeg.mix_voiceover(raw, vo, folder / f"hl_{k:02}.mp4")
         else:
             clip = raw

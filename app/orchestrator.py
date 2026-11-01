@@ -19,7 +19,7 @@ from . import producers
 from .agents import (analyst, animator, critic, director, hero_research, human_touch, monetization, packaging, quality, showrunner,)
 from .agents import publisher, researcher, retention, seo, thumbnails, writer
 from .config import get_channel, load_channels
-from .db import add_activity as act, jobs, log_run, save_job, store
+from .db import add_activity as act, get_job, jobs, log_run, save_job, store
 
 log = logging.getLogger("orchestrator")
 
@@ -125,6 +125,7 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     report: dict = {"channel": channel_id}
 
     act(cfg.id, "director", "¡Arranca el ciclo, equipo!", kind="ok")
+    _redo_bad_voice(cfg)
     _revive(cfg)
     _dedupe(cfg)
     act(cfg.id, "analista", "Revisando métricas de los videos publicados…")
@@ -297,6 +298,31 @@ def _animate(cfg, job, cesar_notes: str = ""):
     job.anim_redo = False
     save_job(job)
     return job
+
+
+BAD_VOICE_JOBS = ("job_c9351f4823", "job_b99e5e3e39")   # se doblaron con "Habla en español de México" (31 oct)
+
+
+def _redo_bad_voice(cfg) -> None:
+    """Una sola vez: se vuelven a editar con la voz buena. El video viejo queda privado en YouTube para que César
+    lo borre (la oficina no borra videos de su canal)."""
+    if cfg.id != "gaming" or store().get(cfg.id, "fixes", "bad_voice_redo"):
+        return
+    done = []
+    for jid in BAD_VOICE_JOBS:
+        j = get_job(cfg.id, jid)
+        if not j or j.status == "published" or not (j.script and j.script.highlights):
+            continue
+        old = j.youtube_video_id
+        j.qa = {**j.qa, "old_video_id": old, "redo_reason": "voz leía la instrucción"}
+        j.status, j.video_path, j.thumbnail_paths, j.thumbnail_chosen = "scripted", None, [], None
+        j.youtube_video_id, j.scheduled_for, j.approved = None, None, False
+        save_job(j)
+        done.append(f"«{j.script.title}» (viejo: {old})")
+    store().put(cfg.id, "fixes", "bad_voice_redo", {"jobs": done, "at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()})
+    if done:
+        act(cfg.id, "director", "Rehago con la voz correcta: " + "; ".join(done) +
+            ". César: borra en Studio los videos viejos (siguen privados).", kind="ask")
 
 
 def _revive(cfg) -> None:

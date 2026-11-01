@@ -104,12 +104,13 @@ def sync(cfg) -> list[Path]:
                              fields="files(id,name,size,createdTime,mimeType)", orderBy="createdTime desc", pageSize=50).execute().get("files", [])
     from ..db import jobs
     used = {j.idea.source_media for j in jobs(cfg.id) if j.idea.source_media}
+    needed = {j.idea.source_media for j in jobs(cfg.id) if j.idea.source_media and j.status in ("approved", "scripted")}
     done = set()
     for d in store().list(cfg.id, "drive_imports"):
         p = d.get("path")
         # el disco de Render se borra en cada reinicio/deploy: si la partida se bajó pero ningún video la usó
         # y el archivo ya no está, se vuelve a bajar
-        if d.get("status") == "descargada" and p and not Path(p).exists() and p not in used:
+        if d.get("status") == "descargada" and p and not Path(p).exists() and (p not in used or p in needed):
             continue
         # "muy grande" se reintenta si César reemplazó el archivo por uno más chico (mismo id, otro tamaño)
         if d.get("status") == "muy grande" and int(next((x.get("size") or 0 for x in files if x["id"] == d["id"]), 0)) != d.get("size"):

@@ -46,7 +46,9 @@ def synthesize(text: str, out_path: Path, voice: str = DEFAULT_VOICE, language: 
 
     from ..llm import client
 
-    prompt = f"{style or 'Habla en español de México, tono claro y amable, ritmo ágil'}: {text}"
+    # OJO: Gemini TTS lee en voz alta todo lo que va en el texto; nada de instrucciones aquí (se oía
+    # "Habla en español de México" al inicio de cada frase). El idioma lo detecta solo.
+    prompt = text
     name = _gemini_voice(voice)
     configs = [
         # forma actual de la API (voice_config.voice)
