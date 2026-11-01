@@ -30,7 +30,7 @@ async def _quota_or_error(request, exc):
     txt = f"{type(exc).__name__}: {exc}"
     if "RESOURCE_EXHAUSTED" in txt or "Quota exceeded" in txt or "ResourceExhausted" in txt:
         logging.getLogger("main").warning("Firestore sin cuota diaria (%s)", request.url.path)
-        return JSONResponse({"detail": "La base de datos gratis llegó a su límite de hoy; se reinicia a las 2:00 am (CDMX)."},
+        return JSONResponse({"detail": "La base de datos gratis llegó a su límite de hoy; vuelve sola a la medianoche de California (1-2 am en CDMX)."},
                             status_code=503)
     logging.getLogger("main").exception("error en %s", request.url.path)
     return JSONResponse({"detail": str(exc)[:200]}, status_code=500)
