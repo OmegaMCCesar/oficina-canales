@@ -72,6 +72,9 @@ def run(cfg: ChannelConfig) -> list[Idea]:
 
 {insights_block(cfg.id)}
 
+{__import__("app.agents.trends", fromlist=["block"]).block(cfg.id)}
+(Usa las tendencias para elegir temas y ángulos con demanda HOY; nunca copies títulos de otros canales.)
+
 SEMILLAS DE TEMAS: {cfg.topic_seeds}
 COMENTARIOS RECIENTES DE LA AUDIENCIA:
 {chr(10).join('- ' + c for c in comments) or '- (ninguno)'}

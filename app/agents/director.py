@@ -97,6 +97,8 @@ ESTADO DE LA COLA:
 - Días de contenido cubiertos: {days_covered:.1f} (cadencia: {cfg.cadence.shorts_per_day} short/día, {cfg.cadence.longs_per_week} largos/semana)
 - Máximo de listos permitido: {cfg.cadence.max_queue_ready}
 
+{__import__("app.agents.trends", fromlist=["block"]).block(cfg.id)}
+
 IDEAS CANDIDATAS:
 {chr(10).join(f'- id={i.id} | {i.format} | score={i.score} | {i.title} — {i.angle}' + (f' | media={i.source_media}{chr(10)}    LO QUE SE VIO EN LA PARTIDA: ' + __import__('app.agents.scout', fromlist=['brief']).brief(__import__('app.agents.scout', fromlist=['report']).report(cfg.id, i.source_media)).replace(chr(10), ' ') if i.source_media else '') for i in candidates) or '- (ninguna)'}
 

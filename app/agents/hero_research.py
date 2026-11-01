@@ -113,6 +113,9 @@ def run(cfg: ChannelConfig) -> list[Idea]:
         names, facts_for = hero_list(), hero_facts
     options = [h for h in names if h.lower() not in covered]
     random.shuffle(options)
+    from .trends import trending_names
+    hot = trending_names(cfg.id)
+    options.sort(key=lambda h: not any(h.lower() in t for t in hot))   # héroes en tendencia primero
     for hero in options[:3]:
         try:
             facts = facts_for(hero)

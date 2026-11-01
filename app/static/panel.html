@@ -1534,6 +1534,15 @@ async function renderOffice(R, box, base){
       }
     } catch(e){}
   }
+  // 3b4) tendencias de YouTube
+  if (o.trends){
+    const t = o.trends, dt = sec("📈 Tendencias en YouTube (7 días)");
+    dt.append(el("small", null, "Actualizado: " + new Date(t.at).toLocaleString("es-MX")));
+    if (t.rising && t.rising.length) dt.append(el("b", null, "En alza: " + t.rising.slice(0,8).join(", ")));
+    if (t.winning_format) dt.append(el("small", null, "Formato que gana: " + t.winning_format));
+    for (const p of (t.title_patterns||[]).slice(0,4)) dt.append(el("small", null, "• " + p));
+    for (const i of (t.ideas||[]).slice(0,6)){ const c = el("div","req"); c.append(el("b", null, `[${i.format}] ${i.title_idea}`), el("small", null, i.why)); dt.append(c); }
+  }
   // 3c) lo que dijo el Crítico
   if (o.reviews && o.reviews.length){
     const dr = sec("👁️ El Crítico vio estos videos");

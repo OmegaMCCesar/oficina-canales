@@ -292,6 +292,7 @@ def office(channel_id: str):
         "quality": q,
         "drive": __import__("app.tools.gdrive", fromlist=["status"]).status() if channel_id == "gaming" else None,
         "reviews": sorted(store().list(channel_id, "reviews"), key=lambda d: d.get("at", ""), reverse=True)[:3],
+        "trends": {k: v for k, v in (store().get(channel_id, "trends", "latest") or {}).items() if k != "top"} or None,
     }
 
 

@@ -165,6 +165,8 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
             _safe(hero_research.run, cfg)
         else:
             act(cfg.id, "investigador", "Modo «solo partidas»: hoy no investigo héroes de la wiki")
+    from .agents import trends
+    _safe(trends.run, cfg)
     act(cfg.id, "investigador", "Buscando temas: comentarios, tendencias y memoria del canal…")
     new_ideas = researcher.run(cfg)
     report["ideas"] = len(new_ideas)
