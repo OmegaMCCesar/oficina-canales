@@ -84,7 +84,8 @@ IDEAS PENDIENTES (no las repitas): {pending_ideas[-20:]}
 PARTIDAS GRABADAS DISPONIBLES (cada idea DEBE copiar EXACTA una de estas rutas en source_media; no inventes partidas).
 Debajo de cada una está lo que el Analista VIO en ella: el héroe, el resultado y las jugadas del título deben salir
 de ahí (si el resultado no es visible, no lo pongas en el título). Con una partida buena propón 1-3 shorts (una
-jugada cada uno) y, si dura 8+ min con varias jugadas, 1 largo "partida comentada":
+jugada cada uno) y, si dura 8+ min con varias jugadas y aún no tiene su largo, 1 largo (format "long") de
+PARTIDA COMPLETA editada y comentada («Partida completa con <héroe>: …»):
 {chr(10).join(f"- {p}{chr(10)}  {scout.brief(scout.report(cfg.id, p))}{chr(10)}  ya usadas: {[j.idea.title for j in jobs(cfg.id) if j.idea.source_media == p and j.status not in ('rejected', 'failed')]}" for p in inbox) or '(ninguna: no propongas ideas de partidas; devuelve la lista vacía)'}
 """
 

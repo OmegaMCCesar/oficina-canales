@@ -191,6 +191,9 @@ def scout(cfg: ChannelConfig, src: Path) -> dict:
     kda = next((r.kda for r in reversed(reads) if r.kda), "")
     rep = {"path": str(src), "name": src.name, "duration": round(total, 1), "game": pick("game"), "hero": pick("hero"),
            "result": result, "kda": kda, "peaks": peaks, "moments": _moments(notes, peaks, total),
+           # todo lo que vio, cuadro por cuadro: el editor de partidas completas decide qué acelerar o quitar
+           "timeline": [{"t": round(t, 1), "action": n.action, "what": n.what[:80], "banner": n.kill_banner}
+                        for t, n in sorted(notes, key=lambda x: x[0])],
            "summary": " ".join(r.summary for r in reads if r.summary)[:900],
            "at": datetime.now(timezone.utc).isoformat()}
     store().put(cfg.id, "recordings", key_for(str(src)), rep)

@@ -279,7 +279,12 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
 IDEA: {idea.title} — {idea.angle}
 {brief(job)}
 FORMATO: {idea.format} (short máx {cfg.production.short_max_seconds}s)
-""" + (f"""LO QUE EL ANALISTA VIO EN LA PARTIDA (usa SOLO estos tramos; start/end dentro de ellos; no inventes kills,
+""" + ("""ES UN VIDEO LARGO DE PARTIDA COMPLETA: el editor pone la partida entera (acelera lo tranquilo y quita cargas y
+tienda). Tú escribes: hook (1-2 frases para el cold open con la mejor jugada, sin spoilear el resultado), 6-12
+highlights = COMENTARIOS en las jugadas (start/end dentro de los tramos vistos; voiceover de máx 25 palabras: qué
+pasó y por qué funcionó, como comentarista de jugador a jugador), y cta de cierre (suscribirse y pedir el próximo
+héroe). Título: «Partida completa con <héroe>…» + lo mejor que pasó; nada que no esté en lo visto.
+""" if idea.format == "long" else "") + (f"""LO QUE EL ANALISTA VIO EN LA PARTIDA (usa SOLO estos tramos; start/end dentro de ellos; no inventes kills,
 héroes ni resultado que no estén aquí):
 {scout.brief(rep)}""" if seen else "Analiza el video adjunto.")
         fallback = GameplayOut(
