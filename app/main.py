@@ -563,3 +563,32 @@ if os.getenv("ENABLE_SCHEDULER") == "1":
     sched = BackgroundScheduler(timezone="America/Mexico_City")
     sched.add_job(orchestrator.run_all, "cron", hour=6, minute=17)
     sched.start()
+
+
+# Ciclo único pedido por César: correr LCMC Games en cuanto Firestore recupere su cuota diaria.
+# Al arrancar (o despertar) el servidor, si ya pasó la hora y no se ha hecho, se corre una sola vez.
+ONE_SHOT = {"id": "2026-11-01-gaming", "channel": "gaming", "after": "2026-11-01T07:30:00+00:00"}
+
+
+def _one_shot_watch() -> None:
+    import time as _t
+    from datetime import datetime as _dt, timezone as _tz
+    log = logging.getLogger("oneshot")
+    for _ in range(72):                       # hasta 12 h intentando, cada 10 min
+        try:
+            if _dt.now(_tz.utc) >= _dt.fromisoformat(ONE_SHOT["after"]) and settings().MODE == "live":
+                if store().get(ONE_SHOT["channel"], "fixes", "oneshot_" + ONE_SHOT["id"]):
+                    return                    # ya se hizo
+                store().put(ONE_SHOT["channel"], "fixes", "oneshot_" + ONE_SHOT["id"],
+                            {"at": _dt.now(_tz.utc).isoformat()})
+                add_activity(ONE_SHOT["channel"], "director", "La base de datos ya tiene cuota: arranco el ciclo que pidió César", kind="ok")
+                log.info("ciclo único %s", ONE_SHOT)
+                orchestrator.run_channel(ONE_SHOT["channel"])
+                return
+        except Exception as e:                # sin cuota todavía u otro error pasajero
+            log.warning("ciclo único en espera: %s", str(e)[:120])
+        _t.sleep(600)
+
+
+import threading as _threading  # noqa: E402
+_threading.Thread(target=_one_shot_watch, daemon=True, name="oneshot").start()
