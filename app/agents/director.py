@@ -43,7 +43,9 @@ Criterios, en este orden:
 3. Respetar las reglas del canal al pie de la letra.
 4. No saturar: si la cola de videos listos ya cubre más de 7 días de cadencia, aprueba pocas o ninguna.
 Sé exigente: rechaza ideas flojas con una razón de una línea. Si necesitas algo del humano
-(grabar partidas con cierto héroe, confirmar un dato técnico), ponlo en requests_to_human."""
+(grabar partidas con cierto héroe, confirmar un dato técnico), ponlo en requests_to_human.
+Ideas de PARTIDAS REALES de César (con media=): tienen prioridad sobre las de wiki. Si el héroe o el resultado no
+están confirmados, apruébalas igual SIEMPRE QUE el título no los mencione; no las frenes por eso."""
 
 
 def _slots(cfg: ChannelConfig, start: datetime, n: int, format_: str,
