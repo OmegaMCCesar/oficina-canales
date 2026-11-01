@@ -126,6 +126,7 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
 
     act(cfg.id, "director", "¡Arranca el ciclo, equipo!", kind="ok")
     _redo_bad_voice(cfg)
+    _redo_bad_sync(cfg)
     _revive(cfg)
     _dedupe(cfg)
     act(cfg.id, "analista", "Revisando métricas de los videos publicados…")
@@ -338,6 +339,30 @@ def _redo_bad_voice(cfg) -> None:
     if done:
         act(cfg.id, "director", "Rehago con la voz correcta: " + "; ".join(done) +
             ". César: borra en Studio los videos viejos (siguen privados).", kind="ask")
+
+
+BAD_SYNC_JOBS = ("job_9a6b696f52", "job_b99e5e3e39")   # 1 nov: la jugada no salía en el clip y la voz no cuadraba
+
+
+def _redo_bad_sync(cfg) -> None:
+    """Una sola vez: se reescriben y reeditan con las jugadas afinadas segundo a segundo."""
+    if cfg.id != "gaming" or store().get(cfg.id, "fixes", "bad_sync_redo"):
+        return
+    done = []
+    for jid in BAD_SYNC_JOBS:
+        j = get_job(cfg.id, jid)
+        if not j or j.status == "published":
+            continue
+        old = j.youtube_video_id
+        j.qa = {k: v for k, v in j.qa.items() if k in ("old_video_id",)} | {"old_video_id_2": old, "redo_reason": "jugada fuera del clip"}
+        j.status, j.script, j.video_path, j.thumbnail_paths, j.thumbnail_chosen = "approved", None, None, [], None
+        j.youtube_video_id, j.scheduled_for, j.approved = None, None, False
+        save_job(j)
+        done.append(f"«{j.idea.title[:50]}» (viejo: {old})")
+    store().put(cfg.id, "fixes", "bad_sync_redo", {"jobs": done, "at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()})
+    if done:
+        act(cfg.id, "director", "Rehago con las jugadas afinadas al segundo: " + "; ".join(done) +
+            ". César: borra en Studio esas versiones (siguen privadas).", kind="ask")
 
 
 def _revive(cfg) -> None:

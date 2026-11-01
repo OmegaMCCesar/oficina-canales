@@ -42,6 +42,7 @@ class Highlight(BaseModel):
     end: float
     caption: str          # rótulo en pantalla
     voiceover: str        # lo que se narra encima
+    vo_at: float = 0      # segundo (de la partida) en que empieza la narración: cuando empieza la acción que describe
 
 
 class GameplayOut(BaseModel):
@@ -246,6 +247,13 @@ def _fit_highlights(hl: list, rep: dict, max_total: float) -> list:
         if not m:
             continue
         h.start, h.end = max(h.start, m["start"] - 3), min(max(h.end, h.start + 4), m["end"] + 3, rep["duration"])
+        ba = m.get("banner_at")
+        if ba and not (h.start <= ba <= h.end):           # el anuncio de la kill SIEMPRE dentro del clip
+            h.start, h.end = min(h.start, ba - 4), max(h.end, ba + 2)
+        if m.get("refined"):                               # con jugada precisa, el tramo es el que se vio
+            h.start, h.end = max(h.start, m["start"]), min(h.end, m["end"]) if not ba or ba + 2 <= m["end"] else h.end
+        if not (h.start <= h.vo_at < h.end):
+            h.vo_at = (m["beats"][0]["t"] if m.get("beats") else h.start)
         if h.end - h.start < 3 or (out and h.start < out[-1].end):
             continue
         if total + (h.end - h.start) > max_total:
@@ -286,7 +294,11 @@ pasó y por qué funcionó, como comentarista de jugador a jugador), y cta de ci
 héroe). Título: «Partida completa con <héroe>…» + lo mejor que pasó; nada que no esté en lo visto.
 """ if idea.format == "long" else "") + (f"""LO QUE EL ANALISTA VIO EN LA PARTIDA (usa SOLO estos tramos; start/end dentro de ellos; no inventes kills,
 héroes ni resultado que no estén aquí):
-{scout.brief(rep)}""" if seen else "Analiza el video adjunto.")
+{scout.brief(rep)}
+SINCRONÍA (lo más importante): usa las jugadas [PRECISO] y sus beats segundo a segundo. Cada highlight debe
+incluir el anuncio de racha (si lo hay) entre start y end. La voz narra SOLO lo que se ve en esos beats, en el mismo
+orden, y vo_at = segundo del primer beat que narras. Máximo 2.3 palabras por segundo del tramo (voz corta: deja
+oír el juego). Si una jugada es [aproximado], no la uses salvo que no haya otra.""" if seen else "Analiza el video adjunto.")
         fallback = GameplayOut(
             title=idea.title[:70], hook="Mira esto",
             highlights=[Highlight(start=5, end=20, caption="Triple kill", voiceover="Aquí entro por atrás y nadie me ve venir.")],

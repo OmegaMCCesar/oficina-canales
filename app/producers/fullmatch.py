@@ -130,11 +130,13 @@ def _render(src: Path, sg: dict, out: Path, k: int) -> Path:
     return out
 
 
-def _with_voice(clip: Path, text: str, out: Path, cfg: ChannelConfig, k: int) -> Path:
+def _with_voice(clip: Path, text: str, out: Path, cfg: ChannelConfig, k: int, delay: float = 0.0) -> Path:
     from ..providers.voice import speak
     vo, _ = speak(text, out.with_name(f"vo_{k}.mp3"), cfg.production.voice_gender, cfg.production.voice_rate)
+    room = (duration(clip) or 0) - (duration(vo) or 0) - 0.3
+    ms = int(max(0.0, min(delay, room)) * 1000)
     ffmpeg._run(["-i", str(clip), "-i", str(vo), "-filter_complex",
-                 "[0:a]volume=0.30[g];[1:a]apad[v];[g][v]amix=inputs=2:duration=first:normalize=0[a]",
+                 f"[0:a]volume=0.30[g];[1:a]adelay={ms}|{ms},apad[v];[g][v]amix=inputs=2:duration=first:normalize=0[a]",
                  "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-ar", "44100", "-ac", "2", str(out)])
     return out
 
@@ -170,7 +172,9 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         say = [h for h in pending if sg["kind"] == "play" and sg["start"] - 1 <= h["start"] < sg["end"]]
         if say:
             pending = [h for h in pending if h not in say]
-            c = _with_voice(c, " ".join(h.get("voiceover", "") for h in say), folder / f"s_{k:03}_v.mp4", cfg, k)
+            at = min(float(h.get("vo_at") or h["start"]) for h in say)
+            c = _with_voice(c, " ".join(h.get("voiceover", "") for h in say), folder / f"s_{k:03}_v.mp4", cfg, k,
+                            delay=max(0.0, at - sg["start"]))
         clips.append(c)
         if k % 6 == 0:
             trim()

@@ -200,6 +200,10 @@ def scout(cfg: ChannelConfig, src: Path) -> dict:
     if prev.get("cesar"):
         rep["cesar"] = prev["cesar"]          # lo que confirmó César no se pierde al volver a ver la partida
     store().put(cfg.id, "recordings", key_for(str(src)), rep)
+    try:
+        rep = refine(cfg, src, rep)
+    except Exception as e:
+        log.warning("[%s] sin segunda pasada (%s)", cfg.id, e)
     for f in folder.glob("*.jpg"):
         f.unlink(missing_ok=True)
     best = rep["moments"][0]["what"][:60] if rep["moments"] else "sin jugadas claras"
@@ -207,6 +211,94 @@ def scout(cfg: ChannelConfig, src: Path) -> dict:
                  f"Vi tu partida: {rep['hero'] or 'héroe sin identificar'} · {rep['result'] or 'resultado no visible'}"
                  f"{' · KDA ' + kda if kda else ''} · {len(rep['moments'])} jugada(s). La mejor: {best}",
                  to="director", kind="ok" if rep["moments"] else "ask")
+    return rep
+
+
+# ---------- segunda pasada: precisión al segundo en cada jugada ----------
+class Beat(BaseModel):
+    frame: int            # número de cuadro (1..N)
+    what: str             # lo que se ve EXACTAMENTE en ese cuadro ("Hanzo entra por la izquierda", "aparece DOUBLE KILL")
+
+
+class Refined(BaseModel):
+    action_start: int     # cuadro donde EMPIEZA la acción (pelea, persecución)
+    action_end: int       # cuadro donde termina (enemigo muerto, se aleja)
+    banner_frame: int = 0 # cuadro donde aparece el anuncio (Double/Triple Kill, Savage…); 0 si no hay
+    banner: str = ""      # texto del anuncio tal cual
+    is_play: bool = True  # False si en realidad no pasa nada interesante
+    beats: list[Beat] = []
+    summary: str = ""
+
+
+SYSTEM_REFINE = """Eres el ANALISTA DE PARTIDAS. Ves cuadros CONSECUTIVOS, uno por segundo, de una jugada de Mobile
+Legends / Magic Chess, numerados con su minuto:segundo. Ubica con precisión de un cuadro:
+- dónde empieza la acción y dónde termina; - en qué cuadro sale el anuncio de racha (Double Kill, Triple Kill, Maniac,
+Savage, Wiped Out, First Blood, Lord) y su texto exacto; - beats: lo que se ve en los cuadros clave (6-12), solo lo
+visible (quién ataca, quién muere, si escapa). Si no pasa nada interesante, is_play=false. NO inventes."""
+
+PER_REFINE = 30
+RTILE = (384, 173)
+
+
+def _dense_sheet(src: Path, times: list[float], out: Path) -> Path:
+    tw, th = RTILE
+    cols = 5
+    rows = (len(times) + cols - 1) // cols
+    sheet = Image.new("RGB", (tw * cols + 4 * cols, th * rows + 4 * rows), (25, 25, 25))
+    d = ImageDraw.Draw(sheet)
+    f = ffmpeg.font(18)
+    for k, t in enumerate(times):
+        im = _frame(src, t, out.with_name(f"rf_{k}.jpg"))
+        im.thumbnail(RTILE)
+        x, y = (k % cols) * (tw + 4), (k // cols) * (th + 4)
+        sheet.paste(im, (x, y))
+        lab = f"{k+1} · {int(t // 60)}:{int(t % 60):02d}"
+        d.rectangle([x, y, x + 10 + int(d.textlength(lab, font=f)), y + 24], fill=(255, 214, 40))
+        d.text((x + 5, y + 2), lab, font=f, fill=(0, 0, 0))
+    sheet.save(out, quality=86)
+    return out
+
+
+def refine(cfg: ChannelConfig, src: Path, rep: dict, top: int = 6) -> dict:
+    """Vuelve a ver cada jugada a 1 cuadro por segundo para saber EXACTAMENTE dónde pasa (y qué se ve)."""
+    from ..providers import vision
+    total = rep["duration"]
+    out_moments = []
+    for m in sorted(rep.get("moments", []), key=lambda x: -x["action"])[:top]:
+        center = (m["start"] + m["end"]) / 2
+        a = max(0.0, min(m["start"] - 6, center - PER_REFINE / 2))
+        times = [round(a + k, 1) for k in range(PER_REFINE) if a + k < total]
+        if len(times) < 5:
+            continue
+        sheet = _dense_sheet(src, times, src.parent / f"refine_{int(a)}.jpg")
+        try:
+            r = vision.ask(SYSTEM_REFINE, f"{len(times)} cuadros, 1 por segundo, desde el segundo {int(a)}. "
+                                          f"El Analista creía ver: {m['what'][:160]}", sheet, Refined)
+        except Exception as e:
+            log.warning("[%s] no pude afinar la jugada %.0fs (%s)", cfg.id, center, e)
+            continue
+        finally:
+            sheet.unlink(missing_ok=True)
+        if not r.is_play:
+            continue
+        at = lambda fr: times[max(1, min(len(times), fr)) - 1]
+        s0, s1 = at(r.action_start), at(r.action_end)
+        if s1 < s0:
+            s0, s1 = s1, s0
+        bt = at(r.banner_frame) if r.banner_frame else None
+        start = max(0.0, s0 - 2)
+        end = min(total, max(s1, bt or s1) + 2.5)
+        out_moments.append({"start": round(start, 1), "end": round(end, 1), "action": m["action"],
+                            "banner": r.banner or m.get("banner", ""), "banner_at": bt,
+                            "what": r.summary or m["what"], "refined": True,
+                            "beats": [{"t": at(b.frame), "what": b.what[:100]} for b in r.beats
+                                      if 1 <= b.frame <= len(times)][:12]})
+    if out_moments:
+        rep["moments"] = sorted(out_moments, key=lambda x: (-x["action"], x["start"]))
+        rep["refined_at"] = datetime.now(timezone.utc).isoformat()
+        store().put(cfg.id, "recordings", key_for(str(src)), rep)
+        add_activity(cfg.id, "investigador", f"Afiné {len(out_moments)} jugada(s) segundo a segundo en {src.name}",
+                     to="guionista", kind="ok")
     return rep
 
 
@@ -236,6 +328,13 @@ def run(cfg: ChannelConfig) -> int:
                                                                     "moments": [], "at": datetime.now(timezone.utc).isoformat()})
                 add_activity(cfg.id, "investigador", f"No pude ver tu partida {p.name}: {str(e)[:80]}", kind="bad")
             return 1
+        if p.suffix.lower() in (".mp4", ".mov", ".mkv", ".webm", ".3gp") and old and old.get("moments") \
+                and not old.get("refined_at") and not old.get("error"):
+            try:
+                refine(cfg, p, old)
+            except Exception as e:
+                log.warning("[%s] no pude afinar %s (%s)", cfg.id, p.name, e)
+            return 1
     return 0
 
 
@@ -243,8 +342,15 @@ def brief(rep: dict | None) -> str:
     """Texto para Investigador/Guionista: lo que REALMENTE pasó en la partida."""
     if not rep or rep.get("error"):
         return "(sin análisis de la partida)"
-    ms = "\n".join(f"  - {m['start']:.0f}s → {m['end']:.0f}s · acción {m['action']}/10"
-                   f"{' · ' + m['banner'] if m.get('banner') else ''} · {m['what'][:160]}" for m in rep["moments"])
+    def _m(m: dict) -> str:
+        banner = ""
+        if m.get("banner"):
+            banner = f" · {m['banner']}" + (f" (aparece en {m['banner_at']:.0f}s)" if m.get("banner_at") else "")
+        tag = " [PRECISO]" if m.get("refined") else " [aproximado]"
+        line = f"  - {m['start']:.0f}s → {m['end']:.0f}s · acción {m['action']}/10{banner} · {m['what'][:160]}{tag}"
+        beats = "".join(f"\n      {b['t']:.0f}s: {b['what']}" for b in m.get("beats", []))
+        return line + beats
+    ms = "\n".join(_m(m) for m in rep["moments"])
     c = rep.get("cesar") or {}
     hero, result, kda = c.get("hero") or rep.get("hero"), c.get("result") or rep.get("result"), c.get("kda") or rep.get("kda")
     conf = " (CONFIRMADO POR CÉSAR, úsalo en títulos)" if c else ""

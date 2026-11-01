@@ -30,7 +30,10 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         if h.get("voiceover"):
             from ..providers.voice import speak   # voz mexicana (edge) como el resto de los videos
             vo, _ = speak(h["voiceover"], folder / f"hl_{k:02}.mp3", cfg.production.voice_gender, cfg.production.voice_rate)
-            clip = ffmpeg.mix_voiceover(raw, vo, folder / f"hl_{k:02}.mp4")
+            # la voz entra cuando empieza la acción que describe (y nunca después de que ya no cabe)
+            clip_len, vo_len = h["end"] - h["start"], tts.duration(vo) or 0
+            delay = max(0.0, min(float(h.get("vo_at") or h["start"]) - h["start"], clip_len - vo_len - 0.3))
+            clip = ffmpeg.mix_voiceover(raw, vo, folder / f"hl_{k:02}.mp4", delay=delay)
         else:
             clip = raw
         clips.append(clip)

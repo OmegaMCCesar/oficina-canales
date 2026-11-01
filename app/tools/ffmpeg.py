@@ -149,9 +149,10 @@ def cut(src: Path, start: float, end: float, out: Path, to_portrait: bool = True
     return out
 
 
-def mix_voiceover(video: Path, voice: Path, out: Path, game_volume: float = 0.35) -> Path:
+def mix_voiceover(video: Path, voice: Path, out: Path, game_volume: float = 0.35, delay: float = 0.0) -> Path:
+    ms = int(max(0.0, delay) * 1000)
     _run(["-i", str(video), "-i", str(voice), "-filter_complex",
-          f"[0:a]volume={game_volume}[g];[g][1:a]amix=inputs=2:duration=first[a]",
+          f"[1:a]adelay={ms}|{ms},apad[v];[0:a]volume={game_volume}[g];[g][v]amix=inputs=2:duration=first:normalize=0[a]",
           "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", str(out)])
     return out
 
