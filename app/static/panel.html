@@ -1258,12 +1258,12 @@ async function pollActivity(){
   }
 }
 function startLive(){
-  clearInterval(live.actTimer); live.since = {}; pollActivity(); live.actTimer = setInterval(pollActivity, 4000);
+  clearInterval(live.actTimer); live.since = {}; pollActivity(); live.actTimer = setInterval(() => { if (!document.hidden) pollActivity(); }, 6000);
   document.getElementById("open-actions").hidden = false;
   document.getElementById("open-calendar").hidden = false;
   mode = "live"; clearInterval(live.timer);
   live.prev = {}; live.insights = {}; live.first = {}; live.req = {};
-  setStatus("demo","Conectando…"); poll(); live.timer = setInterval(poll, 20000);
+  setStatus("demo","Conectando…"); poll(); live.timer = setInterval(() => { if (!document.hidden) poll(); }, 30000);
 }
 function startDemo(){ document.getElementById("open-actions").hidden = true; document.getElementById("open-calendar").hidden = true; mode = "demo"; clearInterval(live.actTimer); clearInterval(live.timer); setStatus("demo","Demo"); }
 

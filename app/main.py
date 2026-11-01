@@ -22,6 +22,19 @@ app = FastAPI(title="Oficina de Canales")
 # El panel 3D puede vivir en otro dominio (artifact); los datos siguen protegidos por x-token.
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"])
 
+
+@app.exception_handler(Exception)
+async def _quota_or_error(request, exc):
+    """Si Firestore se queda sin cuota diaria, el panel recibe un aviso claro en vez de un error 500 con traceback."""
+    from fastapi.responses import JSONResponse
+    txt = f"{type(exc).__name__}: {exc}"
+    if "RESOURCE_EXHAUSTED" in txt or "Quota exceeded" in txt or "ResourceExhausted" in txt:
+        logging.getLogger("main").warning("Firestore sin cuota diaria (%s)", request.url.path)
+        return JSONResponse({"detail": "La base de datos gratis llegó a su límite de hoy; se reinicia a las 2:00 am (CDMX)."},
+                            status_code=503)
+    logging.getLogger("main").exception("error en %s", request.url.path)
+    return JSONResponse({"detail": str(exc)[:200]}, status_code=500)
+
 _PANEL = Path(__file__).parent / "static" / "panel.html"
 
 
