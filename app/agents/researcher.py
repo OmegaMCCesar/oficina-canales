@@ -63,6 +63,10 @@ def run(cfg: ChannelConfig) -> list[Idea]:
     inbox = _gaming_inbox_files(cfg) if cfg.production.kind == "gameplay" else []
     # solo partidas que el Analista ya vio y en las que encontró jugadas
     inbox = [p for p in inbox if (scout.report(cfg.id, p) or {}).get("moments")]
+    if cfg.production.kind == "gameplay":
+        from .base import content_mode
+        if content_mode(cfg.id) == "wiki":
+            inbox = []
 
     user = f"""{channel_brief(cfg)}
 

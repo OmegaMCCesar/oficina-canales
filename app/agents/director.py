@@ -126,6 +126,8 @@ Aprueba las que merecen producirse ahora (máximo {max(0, cfg.cadence.max_queue_
             rejected[idea.id] = "sin partida grabada: no se puede producir"
             if "Graba partidas nuevas para: " + idea.title not in out.requests_to_human:
                 out.requests_to_human.append("Graba partidas nuevas para: " + idea.title)
+        elif cfg.production.kind == "gameplay" and _mode_blocks(cfg, idea):
+            rejected[idea.id] = f"fuera del modo elegido por César ({_mode(cfg)})"
         elif a.approve and len(approved_ids) < room:
             job = VideoJob(channel_id=cfg.id, idea=idea, status="approved", director_notes=a.reason)
             save_job(job)
@@ -352,3 +354,14 @@ VIDEOS POR AGENDAR:
         planned.append(j)
     log.info("[%s] calendario: %d videos agendados. %s", cfg.id, len(planned), out.notes[:120])
     return planned
+
+
+def _mode(cfg) -> str:
+    from .base import content_mode
+    return content_mode(cfg.id)
+
+
+def _mode_blocks(cfg, idea) -> bool:
+    m = _mode(cfg)
+    from_rec = bool(idea.source_media) and not idea.facts
+    return (m == "partidas" and not from_rec) or (m == "wiki" and from_rec)

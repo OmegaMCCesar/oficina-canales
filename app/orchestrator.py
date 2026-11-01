@@ -159,8 +159,12 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
             act(cfg.id, "humano", "Drive: " + (gdrive.status().get("last") or "sin partidas nuevas"))
         from .agents import scout
         _safe(scout.run, cfg)
-        act(cfg.id, "investigador", "Investigando un héroe en la wiki (historia y habilidades)…")
-        _safe(hero_research.run, cfg)
+        from .agents.base import content_mode
+        if content_mode(cfg.id) != "partidas":
+            act(cfg.id, "investigador", "Investigando un héroe en la wiki (historia y habilidades)…")
+            _safe(hero_research.run, cfg)
+        else:
+            act(cfg.id, "investigador", "Modo «solo partidas»: hoy no investigo héroes de la wiki")
     act(cfg.id, "investigador", "Buscando temas: comentarios, tendencias y memoria del canal…")
     new_ideas = researcher.run(cfg)
     report["ideas"] = len(new_ideas)
@@ -176,6 +180,15 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
 
     produced = 0
     queue = jobs(cfg.id, "approved") + jobs(cfg.id, "scripted") + jobs(cfg.id, "produced")
+    if cfg.production.kind == "gameplay":
+        from .agents.base import content_mode, is_from_recording
+        mode = content_mode(cfg.id)
+        # lo que está a medias de la otra modalidad se queda en espera (no se borra) hasta que cambie el modo
+        if mode == "partidas":
+            queue = [j for j in queue if is_from_recording(j)]
+        elif mode == "wiki":
+            queue = [j for j in queue if not is_from_recording(j)]
+        queue.sort(key=lambda j: not is_from_recording(j))   # tus partidas siempre primero
     queue.sort(key=lambda j: not j.anim_redo)   # lo que César pidió rehacer va primero
     attempted = 0
     try:

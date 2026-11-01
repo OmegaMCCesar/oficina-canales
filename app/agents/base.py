@@ -33,3 +33,17 @@ def lessons_block(channel_id: str, kinds: tuple = ("visual",), limit: int = 12) 
     if not ins:
         return ""
     return "LECCIONES DEL CRÍTICO DE VIDEO (aplícalas):\n" + "\n".join(f"- {i.statement}. Haz: {i.action}" for i in ins)
+
+
+CONTENT_MODES = {"ambos": "Partidas y wiki", "partidas": "Solo mis partidas de Drive", "wiki": "Solo héroes de la wiki"}
+
+
+def content_mode(channel_id: str) -> str:
+    """Qué hace el canal de juegos: César lo elige en el panel."""
+    from ..db import store
+    m = (store().get(channel_id, "settings", "content") or {}).get("mode", "ambos")
+    return m if m in CONTENT_MODES else "ambos"
+
+
+def is_from_recording(job) -> bool:
+    return bool(job.idea.source_media) and not job.idea.facts

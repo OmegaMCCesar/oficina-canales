@@ -387,6 +387,23 @@ def recording_confirm(channel_id: str, key: str, body: dict):
     return {"ok": True}
 
 
+@app.get("/channels/{channel_id}/content-mode", dependencies=[Depends(auth)])
+def get_content_mode(channel_id: str):
+    from .agents.base import CONTENT_MODES, content_mode
+    return {"mode": content_mode(channel_id), "options": CONTENT_MODES}
+
+
+@app.post("/channels/{channel_id}/content-mode", dependencies=[Depends(auth)])
+def set_content_mode(channel_id: str, body: dict):
+    from .agents.base import CONTENT_MODES
+    m = str(body.get("mode", ""))
+    if m not in CONTENT_MODES:
+        raise HTTPException(400, "Modo inválido")
+    store().put(channel_id, "settings", "content", {"mode": m})
+    add_activity(channel_id, "director", f"César cambió el modo del canal: {CONTENT_MODES[m]}", kind="ok")
+    return {"mode": m}
+
+
 @app.get("/usage", dependencies=[Depends(auth)])
 def usage():
     """Gasto estimado en Claude (hoy y en el mes)."""

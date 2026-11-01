@@ -1479,6 +1479,28 @@ async function renderOffice(R, box, base){
       const row = el("div","row"); row.append(b); db.append(row, m);
     }
   } catch(e){}
+  // 3b0) modo del canal de juegos
+  if (R.id === "gaming"){
+    try {
+      const cm = await getJSON(`/channels/${R.id}/content-mode`);
+      const dm = sec("🎛️ Qué videos hace el canal · " + cm.options[cm.mode], true);
+      dm.append(el("small", null, "Elige si la oficina hace videos solo con tus partidas de Drive, solo de héroes con la wiki, o de ambos. Con «solo partidas», los videos de wiki que estaban a medias quedan en espera, no se borran."));
+      const row = el("div","row"); const m = el("small","up-msg");
+      for (const [k, t] of Object.entries(cm.options)){
+        const b = el("button", "btn" + (k === cm.mode ? " primary" : ""), t); b.type = "button";
+        b.onclick = async () => {
+          try { const r = await fetch(`${base}/channels/${R.id}/content-mode`, {method:"POST", headers:{"x-token": api.token, "content-type":"application/json"}, body: JSON.stringify({mode: k})});
+            if (!r.ok) throw new Error(r.status);
+            row.querySelectorAll("button").forEach(x => x.classList.remove("primary")); b.classList.add("primary");
+            dm.querySelector("summary").textContent = "🎛️ Qué videos hace el canal · " + t;
+            m.style.color = "var(--ok)"; m.textContent = "Listo: se aplica desde el siguiente ciclo.";
+          } catch(e){ m.style.color = "var(--bad)"; m.textContent = "No se pudo: " + e.message; }
+        };
+        row.append(b);
+      }
+      dm.append(row, m);
+    } catch(e){}
+  }
   // 3b3) partidas que vio el Analista (César confirma héroe y resultado)
   if (R.id === "gaming"){
     try {
