@@ -346,11 +346,14 @@ def brief(rep: dict | None) -> str:
         banner = ""
         if m.get("banner"):
             banner = f" · {m['banner']}" + (f" (aparece en {m['banner_at']:.0f}s)" if m.get("banner_at") else "")
-        tag = " [PRECISO]" if m.get("refined") else " [aproximado]"
+        tag = f" [CÉSAR · {m.get('kind', 'jugada')}]" if m.get("by_cesar") else (" [PRECISO]" if m.get("refined") else " [aproximado]")
         line = f"  - {m['start']:.0f}s → {m['end']:.0f}s · acción {m['action']}/10{banner} · {m['what'][:160]}{tag}"
         beats = "".join(f"\n      {b['t']:.0f}s: {b['what']}" for b in m.get("beats", []))
         return line + beats
-    ms = "\n".join(_m(m) for m in rep["moments"])
+    ms = "\n".join(_m(m) for m in moments_of(rep))
+    if has_marks(rep):
+        ms = ("  (MARCADAS POR CÉSAR: son la verdad; los tiempos y lo que pasa salen de él. "
+              "kind=short → un short por cada una; kind=largo → va en el largo)\n" + ms)
     c = rep.get("cesar") or {}
     hero, result, kda = c.get("hero") or rep.get("hero"), c.get("result") or rep.get("result"), c.get("kda") or rep.get("kda")
     conf = " (CONFIRMADO POR CÉSAR, úsalo en títulos)" if c else ""
@@ -358,3 +361,44 @@ def brief(rep: dict | None) -> str:
             f"resultado: {result or 'no visible'} · KDA: {kda or 'no visible'}{conf}"
             + (f" · nota de César: {c['note']}" if c.get("note") else "") + " · "
             f"duración {int(rep['duration'] // 60)} min\n  resumen: {rep.get('summary', '')[:400]}\n  jugadas:\n{ms or '  (ninguna clara)'}")
+
+
+# ---------- marcas de César (la verdad: la IA confunde kills de otros con las suyas) ----------
+_T = r"(\d{1,2})[:.](\d{2})"
+MARK_RE = re.compile(rf"^\s*{_T}\s*(?:-|–|a|al|hasta)\s*{_T}\s*[|:,-]?\s*(short|largo|jugada)?\s*[|:,-]?\s*(.*)$", re.I)
+
+
+def parse_marks(text: str) -> tuple[list[dict], list[str]]:
+    """Una línea por momento: «02:30-02:55 | short | mi triple kill en la jungla». Devuelve (marcas, líneas malas)."""
+    marks, bad = [], []
+    for line in (text or "").splitlines():
+        if not line.strip():
+            continue
+        m = MARK_RE.match(line)
+        if not m:
+            bad.append(line.strip()[:80])
+            continue
+        a = int(m.group(1)) * 60 + int(m.group(2))
+        b = int(m.group(3)) * 60 + int(m.group(4))
+        if b <= a:
+            bad.append(line.strip()[:80])
+            continue
+        marks.append({"start": float(a), "end": float(b), "kind": (m.group(5) or "jugada").lower(),
+                      "what": m.group(6).strip()[:200] or "jugada"})
+    return sorted(marks, key=lambda x: x["start"]), bad
+
+
+def moments_of(rep: dict | None) -> list[dict]:
+    """Jugadas a usar: las que marcó César (si hay); si no, las del Analista."""
+    if not rep:
+        return []
+    marks = rep.get("cesar_marks") or []
+    if marks:
+        return [{"start": m["start"], "end": m["end"], "action": 10, "banner": "", "banner_at": None,
+                 "what": m["what"], "kind": m["kind"], "refined": True, "by_cesar": True,
+                 "beats": [{"t": m["start"], "what": m["what"]}]} for m in marks]
+    return rep.get("moments", [])
+
+
+def has_marks(rep: dict | None) -> bool:
+    return bool(rep and rep.get("cesar_marks"))

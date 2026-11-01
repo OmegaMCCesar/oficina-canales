@@ -51,7 +51,7 @@ def _gaming_inbox_files(cfg: ChannelConfig) -> list[str]:
     used = Counter(j.idea.source_media for j in jobs(cfg.id)
                    if j.idea.source_media and j.status not in ("rejected", "failed"))
     files = [p for p in sorted(inbox.iterdir()) if p.suffix.lower() in (".mp4", ".mov", ".mkv", ".webm", ".3gp")]
-    return [str(p) for p in files if used[str(p)] < 3]
+    return [str(p) for p in files if used[str(p)] < 12]   # una partida marcada puede dar varios shorts + su largo
 
 
 def run(cfg: ChannelConfig) -> list[Idea]:
@@ -62,7 +62,8 @@ def run(cfg: ChannelConfig) -> list[Idea]:
     from . import scout
     inbox = _gaming_inbox_files(cfg) if cfg.production.kind == "gameplay" else []
     # solo partidas que el Analista ya vio y en las que encontró jugadas
-    inbox = [p for p in inbox if (scout.report(cfg.id, p) or {}).get("moments")]
+    # solo partidas que César marcó (minuto a minuto): la IA sola confunde las kills de otros con las suyas
+    inbox = [p for p in inbox if scout.has_marks(scout.report(cfg.id, p))]
     if cfg.production.kind == "gameplay":
         from .base import content_mode
         if content_mode(cfg.id) == "wiki":
@@ -86,8 +87,7 @@ IDEAS PENDIENTES (no las repitas): {pending_ideas[-20:]}
         user += f"""
 PARTIDAS GRABADAS DISPONIBLES (cada idea DEBE copiar EXACTA una de estas rutas en source_media; no inventes partidas).
 Debajo de cada una está lo que el Analista VIO en ella: el héroe, el resultado y las jugadas del título deben salir
-de ahí (si el resultado no es visible, no lo pongas en el título). Con una partida buena propón 1-3 shorts (una
-jugada cada uno) y, si dura 8+ min con varias jugadas y aún no tiene su largo, 1 largo (format "long") de
+de ahí (si el resultado no es visible, no lo pongas en el título). Por cada marca de César con kind=short propón EXACTAMENTE un short de esa marca (usa sus palabras para el título); con varias marcas y, si dura 8+ min con varias jugadas y aún no tiene su largo, 1 largo (format "long") de
 PARTIDA COMPLETA editada y comentada («Partida completa con <héroe>: …»). Si el héroe o el resultado NO están
 confirmados, propón el largo IGUAL con un título que no los mencione (p. ej. «Partida completa de MLBB: 4 jugadas
 que cambiaron la pelea») — no esperes a César para eso:

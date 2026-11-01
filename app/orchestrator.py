@@ -127,6 +127,7 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     act(cfg.id, "director", "¡Arranca el ciclo, equipo!", kind="ok")
     _redo_bad_voice(cfg)
     _redo_bad_sync(cfg)
+    _drop_unmarked(cfg)
     _revive(cfg)
     _dedupe(cfg)
     act(cfg.id, "analista", "Revisando métricas de los videos publicados…")
@@ -191,6 +192,9 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
             queue = [j for j in queue if is_from_recording(j)]
         elif mode == "wiki":
             queue = [j for j in queue if not is_from_recording(j)]
+        # videos de partidas SOLO con las marcas de César (la IA sola confunde kills ajenas con las suyas)
+        from .agents import scout as _sc
+        queue = [j for j in queue if not is_from_recording(j) or _sc.has_marks(_sc.report(cfg.id, j.idea.source_media))]
         queue.sort(key=lambda j: not is_from_recording(j))   # tus partidas siempre primero
     queue.sort(key=lambda j: not j.anim_redo)   # lo que César pidió rehacer va primero
     attempted = 0
@@ -363,6 +367,28 @@ def _redo_bad_sync(cfg) -> None:
     if done:
         act(cfg.id, "director", "Rehago con las jugadas afinadas al segundo: " + "; ".join(done) +
             ". César: borra en Studio esas versiones (siguen privadas).", kind="ask")
+
+
+def _drop_unmarked(cfg) -> None:
+    """Una sola vez (1 nov): los videos de partidas armados sin las marcas de César salían mal; se descartan los
+    que aún no se suben para rehacerlos desde sus marcas."""
+    if cfg.id != "gaming" or store().get(cfg.id, "fixes", "drop_unmarked"):
+        return
+    from .agents import scout as _sc
+    n = 0
+    for j in jobs(cfg.id):
+        if j.idea.source_media and not j.idea.facts and j.status in ("approved", "scripted", "produced", "thumbnailed") \
+                and not _sc.has_marks(_sc.report(cfg.id, j.idea.source_media)):
+            j.status, j.director_notes = "rejected", "sin marcas de César: se rehace cuando él marque la partida"
+            save_job(j)
+            n += 1
+    for i in store().list(cfg.id, "ideas"):
+        if i.get("source_media"):
+            store().delete(cfg.id, "ideas", i["id"])
+    store().put(cfg.id, "fixes", "drop_unmarked", {"jobs": n})
+    if n:
+        act(cfg.id, "director", f"Descarté {n} video(s) de partidas hechos sin tus marcas; salen de nuevo cuando marques la partida",
+            kind="ask")
 
 
 def _revive(cfg) -> None:

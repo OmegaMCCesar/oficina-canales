@@ -32,13 +32,18 @@ ENC = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "25", "-pix_fmt", "yuv
        "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "128k"]
 
 
+def _moments(rep: dict) -> list[dict]:
+    from ..agents.scout import moments_of
+    return moments_of(rep)
+
+
 def plan(rep: dict, comments: list[dict]) -> list[dict]:
     """Lista de tramos {start, end, kind: play|fast|cut, caption, banner_t} a partir de lo que vio el Analista."""
     total = float(rep["duration"])
     tl = sorted(rep.get("timeline") or [], key=lambda x: x["t"])
     if not tl:   # reportes viejos: solo jugadas; lo demás se acelera
         tl = [{"t": (m["start"] + m["end"]) / 2, "action": m["action"], "what": m["what"], "banner": m.get("banner", "")}
-              for m in rep.get("moments", [])]
+              for m in _moments(rep)]
     # cada cuadro manda desde la mitad con el anterior hasta la mitad con el siguiente
     segs: list[dict] = []
     for i, f in enumerate(tl):
@@ -49,7 +54,7 @@ def plan(rep: dict, comments: list[dict]) -> list[dict]:
     if not segs:
         segs = [{"start": 0.0, "end": total, "kind": "fast", "caption": "", "banner_t": None}]
     # jugadas y comentarios del guion: siempre a velocidad normal (con colchón)
-    forced = [(m["start"] - 2, m["end"] + 2, m.get("banner") or "", m) for m in rep.get("moments", [])]
+    forced = [(m["start"] - 2, m["end"] + 2, m.get("banner") or "", m) for m in _moments(rep)]
     forced += [(c["start"] - 1, c["end"] + 1, "", c) for c in comments]
     for a, b, banner, m in forced:
         segs = _force(segs, max(0.0, a), min(total, b))
@@ -145,7 +150,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     from ..agents import scout
     src = Path(job.idea.source_media)
     rep = scout.report(cfg.id, str(src))
-    if not rep or not rep.get("moments"):
+    if not rep or not _moments(rep):
         raise ValueError("la partida no tiene análisis del Analista")
     folder = MEDIA_DIR / cfg.id / job.id
     folder.mkdir(parents=True, exist_ok=True)
@@ -156,7 +161,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
                  f"(de {int(rep['duration'] // 60)} min grabados)", to="director")
     clips: list[Path] = []
     # 1) cold open: la mejor jugada primero
-    best = max(rep["moments"], key=lambda m: m["action"])
+    best = max(_moments(rep), key=lambda m: (m["action"], m.get("kind") == "short"))
     hook = {"start": max(0.0, best["end"] - 11), "end": best["end"], "kind": "play",
             "caption": "MIRA CÓMO TERMINA ESTO", "banner_t": None}
     c = _render(src, hook, folder / "s_hook.mp4", 0)

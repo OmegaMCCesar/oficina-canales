@@ -240,7 +240,8 @@ DATOS VERIFICADOS:
 
 def _fit_highlights(hl: list, rep: dict, max_total: float) -> list:
     """Cada jugada debe caer dentro de un tramo que el Analista vio de verdad; se recorta a ese tramo."""
-    moments = rep.get("moments", [])
+    from . import scout as _sc
+    moments = _sc.moments_of(rep)
     out, total = [], 0.0
     for h in sorted(hl, key=lambda x: x.start):
         m = next((m for m in moments if h.start < m["end"] and h.end > m["start"]), None)
@@ -281,7 +282,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
             return job
         from . import scout
         rep = scout.report(cfg.id, idea.source_media)
-        seen = rep and rep.get("moments")
+        seen = rep and scout.moments_of(rep)
         user = f"""{channel_brief(cfg)}
 {insights_block(cfg.id, 12)}
 IDEA: {idea.title} — {idea.angle}

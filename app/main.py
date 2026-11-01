@@ -418,6 +418,28 @@ def set_content_mode(channel_id: str, body: dict):
     return {"mode": m}
 
 
+@app.post("/channels/{channel_id}/recordings/{key}/marks", dependencies=[Depends(auth)])
+def recording_marks(channel_id: str, key: str, body: dict):
+    """César marca su partida: nombre y momentos «02:30-02:55 | short | lo que pasa» (una línea cada uno)."""
+    from .agents import scout
+    d = store().get(channel_id, "recordings", key)
+    if not d:
+        raise HTTPException(404, "No encontré esa partida")
+    marks, bad = scout.parse_marks(str(body.get("text", ""))[:6000])
+    if bad and not marks:
+        raise HTTPException(400, "No entendí ninguna línea. Usa: 02:30-02:55 | short | mi triple kill en la jungla")
+    dur = float(d.get("duration") or 0)
+    marks = [m for m in marks if not dur or m["start"] < dur]
+    d["cesar_marks"], d["marks_text"] = marks, str(body.get("text", ""))[:6000]
+    if str(body.get("label", "")).strip():
+        d["label"] = str(body["label"]).strip()[:80]
+    store().put(channel_id, "recordings", key, d)
+    shorts = sum(1 for m in marks if m["kind"] == "short")
+    add_activity(channel_id, "investigador", f"César marcó «{d.get('label') or d['name']}»: {len(marks)} momento(s), "
+                 f"{shorts} para short. En el siguiente ciclo salen los videos.", to="director", kind="ok")
+    return {"marks": marks, "bad": bad}
+
+
 @app.get("/usage", dependencies=[Depends(auth)])
 def usage():
     """Gasto estimado en Claude (hoy y en el mes)."""

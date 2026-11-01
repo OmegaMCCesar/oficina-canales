@@ -1529,7 +1529,22 @@ async function renderOffice(R, box, base){
             } catch(e){ m.style.color = "var(--bad)"; m.textContent = e.message; }
           };
           const row1 = el("div","row"); row1.append(hero, res, kda); const row2 = el("div","row"); row2.append(note, b);
-          c.append(row1, row2, m); dp.append(c);
+          c.append(row1, row2, m);
+          // marcas de César: la verdad de qué pasa y dónde
+          const mk = el("div","req");
+          mk.append(el("b", null, (r.cesar_marks && r.cesar_marks.length) ? `✍️ Tus marcas (${r.cesar_marks.length})` : "✍️ Marca tu partida (así los videos salen bien)"));
+          mk.append(el("small", null, "Una línea por momento: minuto-inicio a minuto-fin | short o largo o jugada | qué pasa. Ejemplo:\n02:30-02:55 | short | mi triple kill en la jungla, entro por la izquierda\n08:10-08:40 | largo | pelea en el Lord, muero pero lo robamos"));
+          const lab = el("input"); lab.placeholder = "Nombre de la partida (opcional), ej. Hanzo vs Ling"; lab.value = r.label || "";
+          const ta = el("textarea"); ta.rows = 6; ta.style.width = "100%"; ta.value = r.marks_text || ""; ta.placeholder = "02:30-02:55 | short | ...";
+          const bm = el("button","btn primary","Guardar marcas"); bm.type = "button"; const mm = el("small","up-msg");
+          bm.onclick = async () => {
+            try { const x = await fetch(`${base}/channels/${R.id}/recordings/${r.key}/marks`, {method:"POST", headers:{"x-token": api.token, "content-type":"application/json"}, body: JSON.stringify({text: ta.value, label: lab.value})});
+              const t = await x.json().catch(() => ({})); if (!x.ok) throw new Error(t.detail || x.status);
+              mm.style.color = "var(--ok)"; mm.textContent = `Guardé ${t.marks.length} momento(s)` + (t.bad.length ? ` · no entendí: ${t.bad.join(" / ")}` : "") + ". Corre un ciclo para que salgan los videos.";
+            } catch(e){ mm.style.color = "var(--bad)"; mm.textContent = e.message; }
+          };
+          mk.append(lab, ta, bm, mm); c.append(mk);
+          dp.append(c);
         }
       }
     } catch(e){}
