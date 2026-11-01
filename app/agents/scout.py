@@ -196,6 +196,9 @@ def scout(cfg: ChannelConfig, src: Path) -> dict:
                         for t, n in sorted(notes, key=lambda x: x[0])],
            "summary": " ".join(r.summary for r in reads if r.summary)[:900],
            "at": datetime.now(timezone.utc).isoformat()}
+    prev = store().get(cfg.id, "recordings", key_for(str(src))) or {}
+    if prev.get("cesar"):
+        rep["cesar"] = prev["cesar"]          # lo que confirmó César no se pierde al volver a ver la partida
     store().put(cfg.id, "recordings", key_for(str(src)), rep)
     for f in folder.glob("*.jpg"):
         f.unlink(missing_ok=True)
@@ -222,7 +225,9 @@ def run(cfg: ChannelConfig) -> int:
     if not inbox.exists():
         return 0
     for p in sorted(inbox.iterdir()):
-        if p.suffix.lower() in (".mp4", ".mov", ".mkv", ".webm", ".3gp") and not report(cfg.id, str(p)):
+        old = report(cfg.id, str(p))
+        # reportes de antes del editor de partidas completas no traen la línea de tiempo: se vuelve a ver
+        if p.suffix.lower() in (".mp4", ".mov", ".mkv", ".webm", ".3gp") and (not old or ("timeline" not in old and not old.get("error"))):
             try:
                 scout(cfg, p)
             except Exception as e:
