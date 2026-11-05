@@ -21,6 +21,8 @@ CLAIM_TIMEOUT_MIN = 120    # si la laptop agarró un video y no lo entregó en 2
 QUEUE_TIMEOUT_MIN = 45     # si nadie lo agarró en 45 min (laptop apagada), lo arma el servidor
 
 _state = {"last_seen": 0.0, "name": "", "version": ""}
+import threading as _th
+_claim_lock = _th.Lock()   # dos ventanas del estudio nunca agarran el mismo video
 
 
 def heartbeat(name: str, version: str = "") -> None:
@@ -55,6 +57,11 @@ def hand_off(cfg: ChannelConfig, job) -> bool:
 
 def next_job() -> dict | None:
     """La laptop pide trabajo: el video en cola más antiguo; queda «rendering» a su nombre."""
+    with _claim_lock:
+        return _next_job()
+
+
+def _next_job() -> dict | None:
     from .producers.maquina import spec
     for ch in ("lcmc", "gaming"):
         for j in sorted(jobs(ch, "render_queued"), key=lambda j: j.qa.get("queued_at", "")):
