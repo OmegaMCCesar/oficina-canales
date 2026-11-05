@@ -293,6 +293,7 @@ def office(channel_id: str):
         "drive": __import__("app.tools.gdrive", fromlist=["status"]).status() if channel_id == "gaming" else None,
         "reviews": sorted(store().list(channel_id, "reviews"), key=lambda d: d.get("at", ""), reverse=True)[:3],
         "trends": {k: v for k, v in (store().get(channel_id, "trends", "latest") or {}).items() if k != "top"} or None,
+        "worker": __import__("app.worker_hub", fromlist=["status"]).status(),
     }
 
 
@@ -438,6 +439,71 @@ def recording_marks(channel_id: str, key: str, body: dict):
     add_activity(channel_id, "investigador", f"César marcó «{d.get('label') or d['name']}»: {len(marks)} momento(s), "
                  f"{shorts} para short. En el siguiente ciclo salen los videos.", to="director", kind="ok")
     return {"marks": marks, "bad": bad}
+
+
+# ---------- estudio de render híbrido (laptop de César) ----------
+@app.post("/worker/heartbeat", dependencies=[Depends(auth)])
+def worker_heartbeat(body: dict):
+    from . import worker_hub
+    worker_hub.heartbeat(str(body.get("name", "laptop")), str(body.get("version", "")))
+    return {"ok": True, "bundle": worker_hub.bundle_version(), "running": orchestrator.is_running()}
+
+
+@app.get("/worker/status", dependencies=[Depends(auth)])
+def worker_status():
+    from . import worker_hub
+    return worker_hub.status()
+
+
+@app.get("/worker/bundle.zip", dependencies=[Depends(auth)])
+def worker_bundle():
+    from . import worker_hub
+    return Response(worker_hub.bundle_zip(), media_type="application/zip")
+
+
+@app.post("/worker/next", dependencies=[Depends(auth)])
+def worker_next():
+    from . import worker_hub
+    worker_hub.heartbeat(worker_hub._state["name"] or "laptop", worker_hub._state["version"])
+    return worker_hub.next_job() or {}
+
+
+@app.get("/worker/media", dependencies=[Depends(auth)])
+def worker_media(u: str):
+    """Imágenes que César subió a su Drive (drive:ID): la laptop las pide por aquí."""
+    if not u.startswith("drive:"):
+        raise HTTPException(400, "solo drive:")
+    import tempfile
+    from .tools.gdrive import fetch_file
+    with tempfile.TemporaryDirectory() as d:
+        p = fetch_file(u[6:], Path(d) / "img")
+        return Response(p.read_bytes(), media_type="application/octet-stream")
+
+
+@app.post("/worker/result/{channel_id}/{job_id}", dependencies=[Depends(auth)])
+async def worker_result(channel_id: str, job_id: str, request: Request):
+    """La laptop sube el video terminado (cuerpo = mp4). Miniatura opcional con ?thumb=1 en otra llamada."""
+    from . import worker_hub
+    from .config import MEDIA_DIR
+    folder = MEDIA_DIR / channel_id / job_id
+    folder.mkdir(parents=True, exist_ok=True)
+    kind = request.query_params.get("kind", "video")
+    out = folder / ("miniatura_maquina.jpg" if kind == "thumb" else "final.mp4")
+    with open(out, "wb") as fh:
+        async for chunk in request.stream():
+            fh.write(chunk)
+    if kind == "video":
+        thumb = folder / "miniatura_maquina.jpg"
+        worker_hub.accept_result(channel_id, job_id, out, thumb if thumb.exists() else None,
+                                 float(request.query_params.get("seconds", "0") or 0))
+    return {"ok": True, "bytes": out.stat().st_size}
+
+
+@app.post("/worker/failed/{channel_id}/{job_id}", dependencies=[Depends(auth)])
+def worker_failed(channel_id: str, job_id: str, body: dict):
+    from . import worker_hub
+    worker_hub.give_back(channel_id, job_id, str(body.get("error", "")))
+    return {"ok": True}
 
 
 @app.get("/usage", dependencies=[Depends(auth)])

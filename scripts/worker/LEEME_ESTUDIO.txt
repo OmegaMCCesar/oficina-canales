@@ -1,0 +1,23 @@
+ESTUDIO DE RENDER (laptop) — Oficina de Canales
+================================================
+Mientras la laptop esté prendida, arma aquí los videos de la oficina (mucho más rápido que el servidor)
+y se los entrega. Si la apagas, la oficina sigue sola (más lento). Nada se pierde.
+
+1) Agrega estas líneas a tu archivo .env (en esta carpeta, el mismo de la Máquina Lumi):
+
+   OFICINA_URL=https://oficina-canales.onrender.com
+   OFICINA_TOKEN=pega_aqui_el_token_que_usas_en_el_panel
+   OFICINA_CICLO_HORAS=3
+
+   OFICINA_CICLO_HORAS: cada cuántas horas la laptop le pide un ciclo a la oficina (alterna LCMC y LCMC Games).
+   Pon 0 si solo quieres que arme videos y tú corras los ciclos desde el panel.
+
+2) Doble clic en iniciar_estudio.bat. Debe decir: «Estudio de render ... conectado».
+
+3) Para que arranque solo al prender la laptop:
+   Win + R  ->  escribe  shell:startup  ->  Enter  ->  pega ahí un acceso directo a iniciar_estudio.bat
+
+Notas:
+- La primera vez baja la plantilla de la oficina (unos 12 MB) a la carpeta oficina_bundle\.
+- Los videos se arman en salida\_oficina\ y se borran al entregarse.
+- Tu Máquina Lumi sigue funcionando igual; esto no la cambia.

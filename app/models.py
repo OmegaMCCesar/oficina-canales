@@ -20,6 +20,8 @@ JobStatus = Literal[
     "idea",          # Investigador la propuso
     "approved",      # Director la aprobó
     "scripted",      # Guionista terminó
+    "render_queued", # esperando a la laptop de César (estudio de render)
+    "rendering",     # la laptop lo está armando
     "produced",      # Productor dejó el mp4
     "thumbnailed",   # Miniaturas listas
     "scheduled",     # Publicador la subió programada

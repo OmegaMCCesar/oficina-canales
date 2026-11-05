@@ -1549,6 +1549,12 @@ async function renderOffice(R, box, base){
       }
     } catch(e){}
   }
+  // 3b5) laptop de César (estudio de render)
+  if (o.worker){
+    const w = o.worker, dw = sec("💻 Laptop (estudio de render) · " + (w.online ? "en línea" : "apagada"));
+    dw.append(el("small", null, w.online ? `«${w.name}» está armando los videos de plantilla (mucho más rápido que el servidor).`
+      : "Cuando la laptop está apagada, el servidor arma los videos (más lento). Se prende sola con el inicio de Windows."));
+  }
   // 3b4) tendencias de YouTube
   if (o.trends){
     const t = o.trends, dt = sec("📈 Tendencias en YouTube (7 días)");

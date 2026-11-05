@@ -184,6 +184,10 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
         act(cfg.id, "director", "César: " + d.requests_to_human[0], kind="ask")
 
     produced = 0
+    from . import worker_hub
+    back = worker_hub.reclaim(cfg)
+    if back:
+        act(cfg.id, "productor", f"{back} video(s) que la laptop no armó vuelven a mi cola", kind="ask")
     queue = jobs(cfg.id, "approved") + jobs(cfg.id, "scripted") + jobs(cfg.id, "produced")
     if cfg.production.kind == "gameplay":
         from .agents.base import content_mode, is_from_recording
@@ -247,6 +251,10 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
                     job = _safe(critic.run, cfg, job) or job
                     if job.status == "produced":
                         act(cfg.id, "critico", "Aprobado para miniatura", to="miniaturas")
+            if job.status == "produced" and job.qa.get("needs_critic"):   # armado en la laptop
+                job.qa = {k: v for k, v in job.qa.items() if k != "needs_critic"}
+                act(cfg.id, "critico", f"Viendo lo que armó la laptop: {title}")
+                job = _safe(critic.run, cfg, job) or job
             from .memory import trim
             trim()
             if job.status == "produced":

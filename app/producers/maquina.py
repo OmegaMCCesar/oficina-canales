@@ -116,6 +116,9 @@ def _icon_panel(src: Path, out: Path, w: int = 980, h: int = 460) -> Path:
 
 
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
+    from .. import worker_hub
+    if not job.qa.get("no_laptop") and worker_hub.hand_off(cfg, job):
+        return job                       # la laptop de César lo arma (más rápido); vuelve como «produced»
     from ..maquina import marca as M
     from ..maquina import render as R
     from ..providers.voice import speak
@@ -162,3 +165,38 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     save_job(job)
     log.info("[%s] Máquina Lumi: %s (%.0f s)", cfg.id, out, dur)
     return job
+
+
+def spec(cfg: ChannelConfig, job: VideoJob) -> dict:
+    """Todo lo que la laptop necesita para armar el video igual que la oficina (URLs, no rutas)."""
+    from ..maquina import marca as M
+    escenas = []
+    for k, s in enumerate(job.script.scenes):
+        text = (s.get("text") or s.get("narracion") or "").strip()
+        if not text:
+            continue
+        e = {"tipo": s.get("tipo") or ("gancho" if k == 0 else "explicacion"), "narracion": text,
+             "titulo": s.get("titulo") or s.get("on_screen") or s.get("big") or "",
+             "puntos": list(s.get("puntos") or ([s["detail"]] if s.get("detail") else []))[:3],
+             "pose": s.get("pose") if s.get("pose") in M.POSES else "feliz"}
+        if job.idea.facts:
+            e["pose"] = _mascot_pose(k, len(job.script.scenes), s, escenas[-1]["pose"] if escenas else "")
+            art = s.get("bg_url") if s.get("visual") in ("icon", "clip", "item") else s.get("img_url")
+            sp = job.idea.media.get("splash") or []
+            e["imagen_url"] = art or (sp[k % len(sp)] if sp else "")
+            if s.get("visual") == "icon" and s.get("img_url"):
+                e["icono_url"] = s["img_url"]
+            if s.get("visual") == "item" and s.get("item"):
+                e["item"] = s["item"]
+                try:
+                    from ..agents.hero_research import item_icon
+                    e["icono_url"] = item_icon(s["item"]) or ""
+                except Exception:
+                    pass
+            if not e["titulo"]:
+                e["titulo"] = " ".join(text.split()[:5]).rstrip(".,")
+        escenas.append(e)
+    return {"tema": "games" if cfg.id == "gaming" else "lcmc", "formato": "corto" if job.idea.format == "short" else "largo",
+            "fps": 30, "voz": cfg.production.voice_gender, "velocidad": cfg.production.voice_rate,
+            "titulo": job.script.title, "escenas": escenas,
+            "miniatura": job.script.extra.get("miniatura") if cfg.id != "gaming" else None}

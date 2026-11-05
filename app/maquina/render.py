@@ -331,8 +331,15 @@ def renderizar(escenas, narraciones, formato, salida: Path, trabajo: Path, music
         cmd += ["-filter_complex", filtro_audio, "-map", "0:v", "-map", "[a]"]
     else:
         cmd += ["-map", "0:v", "-map", "1:a"]
-    cmd += ["-c:v", "libx264", "-preset", "superfast", "-crf", "21", "-pix_fmt", "yuv420p", "-threads", "1",
-            "-x264-params", "threads=1:lookahead-threads=1:rc-lookahead=5:ref=1:bframes=0",
+    import os
+    if os.getenv("MAQUINA_POTENTE") == "1":      # laptop de César: todos los núcleos y mejor compresión
+        cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+                ]
+    else:                                       # servidor gratis: 1 hilo y poca memoria
+        cmd += ["-c:v", "libx264", "-preset", "superfast", "-crf", "21", "-pix_fmt", "yuv420p", "-threads", "1",
+                "-x264-params", "threads=1:lookahead-threads=1:rc-lookahead=5:ref=1:bframes=0",
+                ]
+    cmd += [
             "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(salida)]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
