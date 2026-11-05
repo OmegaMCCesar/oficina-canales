@@ -114,6 +114,18 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
                              "stock_query": "", "visual_prompt": ""})
             sc.body = " ".join(s["text"] for s in sc.scenes)
             applied.append("Agregué advertencia de seguridad")
+    from .narration_guard import clean_scenes, problems
+    if sc.scenes:   # última barrera: ninguna nota interna llega a la voz
+        before = len(sc.scenes)
+        sc.scenes, _ = clean_scenes(sc.scenes)
+        bad = [p for x in sc.scenes for p in problems(x.get("text", ""))]
+        if before != len(sc.scenes):
+            applied.append(f"Quité {before - len(sc.scenes)} escena(s) con notas internas")
+        if bad:
+            return _block(cfg, job, "El guion trae notas internas en la narración: " + ", ".join(sorted(set(bad))), orig, [])
+        if not sc.scenes:
+            return _block(cfg, job, "El guion quedó vacío al quitar notas internas", orig, [])
+        sc.body = " ".join(x["text"] for x in sc.scenes)
     from .packaging import brief
     scenes = "\n".join(f"{i+1}. {s['text']}" for i, s in enumerate(sc.scenes)) if sc.scenes else \
         "\n".join(f"- {h.get('caption')}: {h.get('voiceover')}" for h in sc.highlights)

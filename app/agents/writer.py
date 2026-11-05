@@ -170,6 +170,9 @@ Escenas de 1-2 frases. VISUALES (el video debe moverse y verse rico, nunca vací
 - "icon:Nombre" = ícono de la habilidad: card = nombre, detail = qué hace en ≤ 12 palabras.
 - "item:Nombre" = ícono de un objeto de la build (solo objetos que estén en los datos): card = nombre, detail = qué da.
 - "splash:N" = arte oficial N: para historia y transiciones, alternando N (nunca el mismo dos veces seguidas).
+REGLA DE ORO: "text" es SOLO lo que dice el narrador en voz alta. Prohibido escribir notas internas, corchetes,
+"verificar en la wiki", "dato pendiente", ni describir lo que se ve ("aparece X disparando"): lo visual va en media/card.
+Si un dato no está en los datos verificados, NO lo menciones (no lo marques: omítelo).
 Tono: de jugador a jugador, energético, sin gritos. Título del largo: «<Héroe>: guía completa 2026 …» + el gancho."""
 
 
@@ -263,6 +266,10 @@ DATOS VERIFICADOS:
     splash = idea.media.get("splash", [])
     icons = {i["name"].lower(): i["url"] for i in idea.media.get("icons", [])}
     scenes = [_hero_media_scene(idea, s, k, splash, icons) for k, s in enumerate(out.scenes)]
+    from .narration_guard import clean_scenes
+    scenes, dropped = clean_scenes(scenes)
+    if dropped:
+        log.info("[%s] guardia de narración: quité %d escena(s) con notas internas", cfg.id, dropped)
     desc = out.description.strip() + "\n\n" + CREDIT
     return Script(title=out.title, hook=out.hook, hook_text=out.hook_text, body=" ".join(s["text"] for s in scenes),
                   cta=out.cta, cta_end=out.cta, description=desc, tags=out.tags, scenes=scenes)
@@ -348,6 +355,8 @@ miniatura: texto (2-4 palabras ENORMES con la falla como la busca la gente), res
             kept.append(e)
     scenes = [{"text": e.narracion, "tipo": e.tipo, "pose": e.pose, "titulo": e.titulo, "puntos": e.puntos[:3],
                "visual": "maquina", "visual_prompt": ""} for e in kept]
+    from .narration_guard import clean_scenes
+    scenes, _ = clean_scenes(scenes)
     desc = out.descripcion.strip() + ("\n\n" + " ".join(out.hashtags) if out.hashtags else "")
     return Script(title=out.titulo, hook=kept[0].narracion if kept else "", body=" ".join(s["text"] for s in scenes),
                   cta=out.cta, cta_end=out.cta, description=desc, tags=[h.strip("#") for h in out.hashtags][:15],

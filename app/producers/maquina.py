@@ -128,6 +128,8 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     folder = MEDIA_DIR / cfg.id / job.id
     trabajo = folder / "maquina"
     trabajo.mkdir(parents=True, exist_ok=True)
+    from ..agents.narration_guard import clean_scenes
+    job.script.scenes, _ = clean_scenes(job.script.scenes)
     escenas = _escenas(cfg, job, trabajo)
     if not escenas:
         raise ValueError("el guion no tiene escenas")
@@ -169,7 +171,9 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
 
 def spec(cfg: ChannelConfig, job: VideoJob) -> dict:
     """Todo lo que la laptop necesita para armar el video igual que la oficina (URLs, no rutas)."""
+    from ..agents.narration_guard import clean_scenes
     from ..maquina import marca as M
+    job.script.scenes, _ = clean_scenes(job.script.scenes)
     escenas = []
     for k, s in enumerate(job.script.scenes):
         text = (s.get("text") or s.get("narracion") or "").strip()
