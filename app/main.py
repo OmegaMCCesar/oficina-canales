@@ -698,3 +698,28 @@ def _one_shot_watch() -> None:
 
 import threading as _threading  # noqa: E402
 _threading.Thread(target=_one_shot_watch, daemon=True, name="oneshot").start()
+
+
+def _niche_lab_boot() -> None:
+    """Si NICHE_LAB_QUERIES está puesto (lista separada por |), mide esos nichos al arrancar y lo deja en el log."""
+    import json as _json
+    import time as _t
+    qs = [q.strip() for q in os.getenv("NICHE_LAB_QUERIES", "").split("|") if q.strip()]
+    if not qs or settings().MODE != "live":
+        return
+    _t.sleep(20)
+    from .agents import niche_lab
+    log = logging.getLogger("nichelab")
+    for q in qs[:40]:
+        for r in niche_lab.measure(os.getenv("NICHE_LAB_VIA", "lcmc"), [q], int(os.getenv("NICHE_LAB_DAYS", "30")),
+                                   os.getenv("NICHE_LAB_REGION", "MX"), os.getenv("NICHE_LAB_LANG", "es")):
+            def _v(v):
+                return f"{v['views']}|x{v['x']}|{v.get('subs')}s|{v['secs']}s|{v['title'][:60]}|{v['chname'][:24]}"
+            slim = {k: r.get(k) for k in ("query", "videos", "channels", "small_channels", "median_views",
+                                          "top10_views", "long_share", "outliers", "outliers_small", "error")}
+            slim["best_small"] = [_v(v) for v in r.get("best_small", [])]
+            slim["best_outliers"] = [_v(v) for v in r.get("best_outliers", [])]
+            log.info("NICHELAB %s", _json.dumps(slim, ensure_ascii=False))
+
+
+_threading.Thread(target=_niche_lab_boot, daemon=True, name="nichelab").start()
