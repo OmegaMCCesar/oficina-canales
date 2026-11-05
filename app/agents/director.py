@@ -44,6 +44,10 @@ Criterios, en este orden:
 4. No saturar: si la cola de videos listos ya cubre más de 7 días de cadencia, aprueba pocas o ninguna.
 Sé exigente: rechaza ideas flojas con una razón de una línea. Si necesitas algo del humano
 (grabar partidas con cierto héroe, confirmar un dato técnico), ponlo en requests_to_human.
+POLÍTICA DE YOUTUBE (contenido no auténtico, revisan el CANAL ENTERO): no aprobar videos que solo cambian de tema
+sobre la misma plantilla. Prueba del intercambio: si el guion sirve igual cambiando el nombre del héroe o del aparato,
+RECHÁZALO. Cada video debe traer un ángulo propio (caso real, prueba, comparación, error común, mito) y variar formatos.
+En LCMC Games: como máximo 2 videos de wiki por semana; lo que más vale son las partidas reales de César.
 Ideas de PARTIDAS REALES de César (con media=): tienen prioridad sobre las de wiki. Si el héroe o el resultado no
 están confirmados, apruébalas igual SIEMPRE QUE el título no los mencione; no las frenes por eso."""
 

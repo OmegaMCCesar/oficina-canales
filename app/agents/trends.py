@@ -45,7 +45,8 @@ class TrendReport(BaseModel):
 
 
 SYSTEM = """Eres el CAZATENDENCIAS de un canal de YouTube. Recibes los videos más vistos de la ÚLTIMA SEMANA en el
-nicho (con vistas por hora, duración y canal). Detecta lo que está en alza de verdad (no lo de siempre), los
+nicho (con vistas por hora, duración, canal y OUTLIERS: videos a los que les fue muchas veces mejor que el promedio de
+su canal). Prioriza los OUTLIERS: analiza su tema, la promesa del título y el tipo de gancho, y explica la fórmula. Detecta lo que está en alza de verdad (no lo de siempre), los
 patrones de título que se repiten en los que más jalan, y qué formato gana. Luego propone 5-8 ideas PROPIAS para
 este canal (no copies títulos; adapta el ángulo a lo que el canal puede hacer honestamente). Sé concreto: nombres
 de héroes, problemas, números."""
@@ -75,9 +76,25 @@ def fetch(cfg: ChannelConfig) -> list[dict]:
             views = int(v.get("statistics", {}).get("viewCount", 0))
             secs = _iso_dur(v.get("contentDetails", {}).get("duration", ""))
             out.append({"id": v["id"], "title": v["snippet"]["title"], "channel": v["snippet"]["channelTitle"],
+                        "channel_id": v["snippet"].get("channelId"),
                         "views": views, "vph": round(views / hours), "secs": secs,
                         "format": "short" if secs and secs <= 70 else "long", "query": ids[v["id"]],
                         "lang": v["snippet"].get("defaultAudioLanguage", "")})
+    # MÉTODO OUTLIER: un video importa si le fue mucho mejor que el promedio de SU canal (no por ser canal grande)
+    try:
+        chans = list({v["channel_id"] for v in out if v.get("channel_id")})
+        avg = {}
+        for k in range(0, len(chans), 50):
+            r = yt.channels().list(part="statistics", id=",".join(chans[k:k + 50])).execute()
+            for c in r.get("items", []):
+                st = c.get("statistics", {})
+                n = max(1, int(st.get("videoCount", 1) or 1))
+                avg[c["id"]] = int(st.get("viewCount", 0) or 0) / n
+        for v in out:
+            a = avg.get(v.get("channel_id"))
+            v["outlier"] = round(v["views"] / a, 1) if a else None
+    except Exception as e:
+        log.info("[%s] sin promedio de canales (%s)", cfg.id, e)
     return sorted(out, key=lambda x: -x["vph"])
 
 
@@ -119,8 +136,14 @@ def run(cfg: ChannelConfig, force: bool = False) -> dict | None:
         return old
     shorts = [v for v in vids if v["format"] == "short"]
     longs = [v for v in vids if v["format"] == "long"]
-    table = "\n".join(f"- {v['vph']} vistas/h · {v['views']} vistas · {v['format']} {v['secs']}s · «{v['title'][:90]}» "
-                      f"({v['channel'][:30]})" for v in vids[:45])
+    outl = sorted([v for v in vids if v.get("outlier")], key=lambda v: -v["outlier"])[:12]
+
+    def _row(v: dict) -> str:
+        tag = f" · OUTLIER x{v['outlier']}" if (v.get("outlier") or 0) >= 3 else ""
+        return f"- {v['vph']} vistas/h · {v['views']} vistas · {v['format']} {v['secs']}s · «{v['title'][:90]}» ({v['channel'][:30]}{tag})"
+    table = "\n".join(_row(v) for v in vids[:45])
+    table += ("\nOUTLIERS (le fue X veces mejor que el promedio de su propio canal: ahí está la fórmula):\n"
+              + "\n".join(f"- x{v['outlier']} · «{v['title'][:90]}» ({v['channel'][:30]}, {v['format']})" for v in outl))
     user = (f"CANAL: {cfg.name} — {cfg.niche}\nAUDIENCIA: {cfg.audience}\n"
             f"Shorts en la muestra: {len(shorts)} (mediana vph {_median([v['vph'] for v in shorts])}) · "
             f"Largos: {len(longs)} (mediana vph {_median([v['vph'] for v in longs])})\n"
