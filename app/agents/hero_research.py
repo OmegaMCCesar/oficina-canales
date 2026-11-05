@@ -64,20 +64,22 @@ def hero_facts(hero: str) -> str:
     """Historia + lore + habilidades del héroe, en texto plano (inglés), máx ~6000 caracteres."""
     secs = _get({"action": "parse", "page": hero, "prop": "sections", "redirects": "1"})["parse"]["sections"]
     want = [(s["index"], s["line"]) for s in secs
-            if re.search(r"story|lore|background|abilit|skill", s["line"], re.I) and s.get("toclevel", 1) == 1]
+            if re.search(r"story|lore|background|abilit|skill|build|item|equipment|emblem|spell|strateg|tip|counter|combo",
+                         s["line"], re.I) and s.get("toclevel", 1) == 1]
     out = []
-    for idx, name in want[:4]:
+    for idx, name in want[:7]:
         txt = _clean(_get({"action": "parse", "page": hero, "prop": "text", "section": idx, "redirects": "1"})["parse"]["text"]["*"])
-        out.append(f"## {name}\n{txt[:2600]}")
+        out.append(f"## {name}\n{txt[:2200]}")
     facts = "\n\n".join(out)
     if len(facts) < 300:
         raise RuntimeError("la página del héroe no tiene suficiente información")
-    return facts[:6000]
+    return facts[:9000]
 
 
 def hero_media(hero: str) -> dict:
     """Arte oficial del héroe en la wiki: splash arts (horizontales grandes) e íconos de habilidades (cuadrados chicos)."""
     files = _get({"action": "parse", "page": hero, "prop": "images", "redirects": "1"})["parse"]["images"]
+    anim = [f for f in files if f.lower().endswith((".gif", ".webm", ".mp4", ".ogv"))][:12]
     files = [f for f in files if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))][:80]
     infos = []
     for i in range(0, len(files), 25):
@@ -95,7 +97,33 @@ def hero_media(hero: str) -> dict:
             name = re.sub(r"\.(png|jpe?g|webp)$", "", n, flags=re.I).replace("_", " ")
             name = re.sub(rf"^{re.escape(hero)}\s*[-_ ]?\s*", "", name, flags=re.I).strip() or name
             icons.append({"name": name, "url": u})
-    return {"splash": splash, "icons": icons[:12]}
+    clips = []
+    if anim:   # animaciones de habilidades (si la wiki las tiene): movimiento real del héroe
+        try:
+            d = _get({"action": "query", "titles": "|".join("File:" + f for f in anim), "prop": "imageinfo", "iiprop": "url|size"})
+            for p in d.get("query", {}).get("pages", {}).values():
+                ii = (p.get("imageinfo") or [{}])[0]
+                if ii.get("url") and (ii.get("width") or 0) >= 200:
+                    nm = re.sub(r"\.(gif|webm|mp4|ogv)$", "", p["title"][5:], flags=re.I).replace("_", " ")
+                    clips.append({"name": re.sub(rf"^{re.escape(hero)}\s*[-_ ]?\s*", "", nm, flags=re.I).strip() or nm,
+                                  "url": ii["url"]})
+        except Exception as e:
+            log.info("sin animaciones de %s: %s", hero, e)
+    return {"splash": splash, "icons": icons[:12], "clips": clips[:8]}
+
+
+def item_icon(name: str) -> str | None:
+    """Ícono oficial de un objeto (Endless Battle, Blade of Despair…) desde la wiki."""
+    for t in (f"File:{name}.png", f"File:{name.replace(' ', '_')}.png", f"File:{name} (item).png"):
+        try:
+            d = _get({"action": "query", "titles": t, "prop": "imageinfo", "iiprop": "url", "redirects": "1"})
+            for p in d.get("query", {}).get("pages", {}).values():
+                ii = (p.get("imageinfo") or [{}])[0]
+                if ii.get("url"):
+                    return ii["url"]
+        except Exception:
+            continue
+    return None
 
 
 def run(cfg: ChannelConfig) -> list[Idea]:

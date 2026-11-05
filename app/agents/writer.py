@@ -152,23 +152,44 @@ class HeroExpand(BaseModel):
 SYSTEM_HERO = """Eres el GUIONISTA de un canal de Mobile Legends en español de México. Escribes un video sobre UN héroe
 usando SOLO los DATOS VERIFICADOS que te dan (vienen de la wiki en inglés: tradúcelos con naturalidad). No inventes
 números, builds, items, fechas, rangos, kills ni datos que no estén en los datos. Si algo no está, no lo digas.
-Estructura del LARGO (6-8 min): gancho con lo más intrigante de su historia; su historia contada como relato (con
-detalles del lore: lugares, personajes, conflictos); su rol; la pasiva y CADA habilidad explicada con calma (qué hace,
-para qué sirve en una pelea, a qué distancia, contra quién conviene); combos que se deducen de las habilidades;
-fortalezas y debilidades; cierre preguntando a la audiencia. SHORT: un solo dato de su historia o su habilidad más
-vistosa, contado con gancho, 40-55 segundos.
-Escenas de 1-2 frases. VISUALES con el ARTE OFICIAL disponible (el video debe verse rico, nunca vacío):
-- "splash:N" = arte oficial N: úsalo en la MAYORÍA de escenas (historia, gancho, combos, cierre), alternando N.
-  Si quieres un texto grande encima, ponlo en card (1-4 palabras).
-- "icon:Nombre" = ícono de esa habilidad: úsalo cuando explicas esa habilidad; card = nombre de la habilidad y
-  detail = qué hace en ≤ 12 palabras.
-- Nunca dejes una escena sin media si hay arte disponible.
-Tono: de jugador a jugador, energético, sin gritos."""
+ESTRUCTURA DEL LARGO (6-8 min), en este orden y SIN REPETIR NADA (prohibido resumir o recapitular la historia):
+1. GANCHO (0-5 s, 2-3 escenas cortísimas): lo más visual primero (animación o arte con texto grande) + la promesa
+   ("en este video vas a dominar a <héroe>") + el dato emocional más fuerte de su historia en una frase.
+2. HISTORIA BREVE (máx 20% del video), contada para EXPLICAR cómo se juega: conecta el lore con la mecánica
+   ("su entrenamiento en el Abismo → por eso su pasiva hace daño verdadero").
+3. HABILIDADES: pasiva y cada habilidad (qué hace, cuándo usarla, contra quién), con su ícono.
+4. BUILD / OBJETOS / EMBLEMA / HECHIZO: SOLO si vienen en los datos, cada objeto con su ícono (media "item:Nombre
+   exacto en inglés") y qué aporta.
+5. COMBOS (deducidos de las habilidades) y ERRORES COMUNES (solo los que se deducen de los datos).
+6. PREGUNTA A MITAD DEL VIDEO (una escena hacia el 50%): pregunta concreta para comentarios ("¿qué combo usas tú?").
+7. CONSEJOS FINALES y cierre con pregunta.
+SHORT: un solo dato (historia o habilidad más vistosa) con gancho en el primer segundo, 40-55 s.
+Escenas de 1-2 frases. VISUALES (el video debe moverse y verse rico, nunca vacío ni repetido):
+- "clip:Nombre" = animación oficial de esa habilidad (si está en la lista): úsala en el gancho y al explicar esa
+  habilidad. Es lo más dinámico: priorízala.
+- "icon:Nombre" = ícono de la habilidad: card = nombre, detail = qué hace en ≤ 12 palabras.
+- "item:Nombre" = ícono de un objeto de la build (solo objetos que estén en los datos): card = nombre, detail = qué da.
+- "splash:N" = arte oficial N: para historia y transiciones, alternando N (nunca el mismo dos veces seguidas).
+Tono: de jugador a jugador, energético, sin gritos. Título del largo: «<Héroe>: guía completa 2026 …» + el gancho."""
 
 
 def _hero_media_scene(idea, s: HeroScene, k: int, splash: list, icons: dict) -> dict:
     sc = {"text": s.text, "visual_prompt": s.visual_prompt, "lumi": ""}
     m = s.media.strip()
+    if m.startswith("clip"):
+        want = m.split(":", 1)[-1].strip().lower()
+        clips = {c["name"].lower(): c["url"] for c in idea.media.get("clips", [])}
+        url = clips.get(want) or next((u for nm, u in clips.items() if want and (want in nm or nm in want)), None)
+        if url:
+            sc.update({"visual": "clip", "img_url": url, "big": s.card.strip(),
+                       "bg_url": splash[k % len(splash)] if splash else ""})
+            return sc
+        m = "icon:" + m.split(":", 1)[-1]
+    if m.startswith("item"):
+        name = m.split(":", 1)[-1].strip()
+        sc.update({"visual": "item", "item": name, "on_screen": s.card or name, "detail": s.detail,
+                   "bg_url": splash[k % len(splash)] if splash else ""})
+        return sc
     if m.startswith("icon") and icons:
         want = m.split(":", 1)[-1].strip().lower()
         url = icons.get(want) or next((u for nm, u in icons.items() if want and (want in nm or nm in want)), None)
@@ -201,6 +222,7 @@ IDEA: {idea.title} — {idea.angle}
 {brief(job)}
 {lessons_block(cfg.id)}
 FORMATO: {idea.format}. META: ~{target} palabras narradas.
+ANIMACIONES DE HABILIDADES: {", ".join(c["name"] for c in idea.media.get("clips", [])) or "ninguna"}
 ARTE OFICIAL DISPONIBLE: {len(idea.media.get("splash", []))} splash (splash:0 a splash:{max(0, len(idea.media.get("splash", [])) - 1)}){"; íconos: " + ", ".join(i["name"] for i in idea.media.get("icons", [])) if idea.media.get("icons") else "; sin íconos"}
 DATOS VERIFICADOS:
 {idea.facts}"""
@@ -218,8 +240,9 @@ DATOS VERIFICADOS:
                 break
             listing = "\n".join(f"{i+1}. {x.text}" for i, x in enumerate(out.scenes))
             try:
-                ext = ask_json(SYSTEM_HERO + "\nAhora AMPLÍA el guion: agrega escenas nuevas (no repitas) con más detalle "
-                               "de la historia y de cada habilidad, usando solo los datos verificados.",
+                ext = ask_json(SYSTEM_HERO + "\nAhora AMPLÍA el guion con secciones que FALTEN (build/objetos, combos, "
+                               "errores comunes, consejos, contra quién conviene) o con más detalle de cada habilidad. "
+                               "PROHIBIDO volver a contar la historia o repetir algo ya dicho. Usa solo los datos verificados.",
                                f"{user}\nGUION ACTUAL ({have} palabras, faltan ~{target - have}):\n{listing}",
                                HeroExpand, fallback=HeroExpand(additions=[]))
             except Exception as e:
@@ -230,6 +253,13 @@ DATOS VERIFICADOS:
             for add in sorted(ext.additions, key=lambda a: -a.after_scene):
                 kk = max(0, min(len(out.scenes), add.after_scene))
                 out.scenes[kk:kk] = add.scenes
+    from difflib import SequenceMatcher
+    kept: list = []
+    for x in out.scenes:   # nada repetido: si una escena dice casi lo mismo que otra anterior, se quita
+        if any(SequenceMatcher(None, x.text.lower(), y.text.lower()).ratio() > 0.72 for y in kept):
+            continue
+        kept.append(x)
+    out.scenes = kept
     splash = idea.media.get("splash", [])
     icons = {i["name"].lower(): i["url"] for i in idea.media.get("icons", [])}
     scenes = [_hero_media_scene(idea, s, k, splash, icons) for k, s in enumerate(out.scenes)]

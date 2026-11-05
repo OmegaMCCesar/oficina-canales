@@ -128,6 +128,7 @@ def _run_channel(channel_id: str, publish: bool = True) -> dict:
     _redo_bad_voice(cfg)
     _redo_bad_sync(cfg)
     _drop_unmarked(cfg)
+    _save_critique(cfg)
     _revive(cfg)
     _dedupe(cfg)
     act(cfg.id, "analista", "Revisando métricas de los videos publicados…")
@@ -389,6 +390,29 @@ def _drop_unmarked(cfg) -> None:
     if n:
         act(cfg.id, "director", f"Descarté {n} video(s) de partidas hechos sin tus marcas; salen de nuevo cuando marques la partida",
             kind="ask")
+
+
+CESAR_CRITIQUE = [   # crítica del video de Karina que trajo César (4 nov): reglas para todos los videos de héroe
+    ("format", "Los videos solo con imágenes fijas y texto retienen poco", "Alterna arte con animaciones de habilidad (clip:) e íconos; nada quieto mucho rato"),
+    ("hook", "Los primeros 5 segundos deben mostrar acción y la promesa antes de la biografía", "Gancho: lo más visual + 'vas a dominar a <héroe>' + el dato emocional en una frase"),
+    ("format", "Repetir o resumir la historia a mitad del video hace que se vayan los jugadores avanzados", "Cada dato una sola vez: historia breve → habilidades → build/objetos → combos y errores → consejos"),
+    ("format", "Conectar el lore con la mecánica hace la historia útil", "Explica por qué se juega así usando su historia (entrenamiento → su pasiva)"),
+    ("general", "Preguntar a mitad del video sube la interacción", "Una pregunta concreta hacia el 50% ('¿qué combo usas tú?')"),
+    ("format", "Los jugadores quieren ver objetos con sus datos", "Muestra el ícono de cada objeto de la build con lo que da (solo datos verificados)"),
+]
+
+
+def _save_critique(cfg) -> None:
+    if cfg.id != "gaming" or store().get(cfg.id, "fixes", "critique_karina"):
+        return
+    from datetime import datetime, timedelta, timezone
+    from .db import save_insight
+    from .models import Insight
+    for kind, st, ac in CESAR_CRITIQUE:
+        save_insight(Insight(channel_id=cfg.id, kind=kind, statement=st, action=ac, evidence="crítica traída por César (Karina)",
+                             confidence=0.85, expires_at=datetime.now(timezone.utc) + timedelta(days=120)))
+    store().put(cfg.id, "fixes", "critique_karina", {"n": len(CESAR_CRITIQUE)})
+    act(cfg.id, "analista", "Guardé la crítica del video de Karina como reglas del canal", kind="ok")
 
 
 def _revive(cfg) -> None:

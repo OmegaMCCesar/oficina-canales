@@ -132,6 +132,21 @@ def _fetch(url: str, folder: Path) -> Path | None:
     return out
 
 
+def _anim_clip(src: Path, seconds: float, out: Path, w: int, h: int, big: str = "") -> Path:
+    """Animación oficial (gif/webm) en bucle, grande y centrada sobre su versión desenfocada; texto grande opcional."""
+    vf = (f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=20:2,eq=brightness=-0.25[bg];"
+          f"[0:v]scale={int(w * 0.92)}:{int(h * 0.80)}:force_original_aspect_ratio=decrease[fg];"
+          f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=30")
+    args = ["-stream_loop", "-1", "-i", str(src)]
+    if big:
+        cap = ffmpeg.caption_png(big.upper(), w, h, out.with_name(out.stem + "_cap.png"), 0.10, max(36, min(w, h) // 12))
+        args += ["-i", str(cap)]
+        vf += "[v0];[v0][1:v]overlay=0:0"
+    ffmpeg._run([*args, "-filter_complex", vf, "-t", f"{max(seconds, 0.6):.2f}", "-an", "-c:v", "libx264",
+                 "-preset", "veryfast", "-pix_fmt", "yuv420p", str(out)])
+    return out
+
+
 def _big_text(d, W, H, text, y, fs, color=(183, 242, 26)):
     f = ffmpeg.font(fs)
     for i, line in enumerate(ffmpeg.wrap_lines(d, text.upper(), f, int(W * 0.86))[:2]):
@@ -281,7 +296,30 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
                 made = True
             except Exception as e:
                 log.warning("doodle falló (%s); uso plantilla", e)
-        if visual in ("web", "icon") and scn.get("img_url"):
+        if visual == "clip" and scn.get("img_url"):
+            try:
+                src = _fetch(scn["img_url"], folder)
+                if src:
+                    _anim_clip(src, secs, clip, w, h, scn.get("big", ""))
+                    made = True
+            except Exception as e:
+                log.warning("animación de habilidad falló (%s); uso arte", e)
+            if not made and scn.get("bg_url"):
+                scn = {**scn, "visual": "web", "img_url": scn["bg_url"]}
+                visual = "web"
+        if visual == "item" and scn.get("item"):
+            try:
+                from ..agents.hero_research import item_icon
+                url = item_icon(scn["item"])
+                if url:
+                    scn = {**scn, "visual": "icon", "img_url": url}
+                    visual = "icon"
+                elif scn.get("bg_url"):
+                    scn = {**scn, "visual": "web", "img_url": scn["bg_url"], "big": scn.get("on_screen", "")}
+                    visual = "web"
+            except Exception as e:
+                log.warning("ícono de objeto falló (%s)", e)
+        if not made and visual in ("web", "icon") and scn.get("img_url"):
             try:
                 src = _fetch(scn["img_url"], folder)
                 if src:
