@@ -74,6 +74,15 @@ def run_channel(channel_id: str, bg: BackgroundTasks, publish: bool = True):
     return {"started": channel_id}
 
 
+@app.post("/research/niches", dependencies=[Depends(auth)])
+def research_niches(body: dict):
+    """Laboratorio de nichos: datos crudos de YouTube para comparar nichos candidatos."""
+    from .agents import niche_lab
+    qs = [str(q)[:80] for q in (body.get("queries") or [])][:30]
+    return niche_lab.measure(body.get("via", "lcmc"), qs, int(body.get("days", 30)),
+                             body.get("region", "MX"), body.get("lang", "es"))
+
+
 @app.post("/run", dependencies=[Depends(auth)])
 def run_all(bg: BackgroundTasks, publish: bool = True):
     bg.add_task(orchestrator.run_all, publish)
