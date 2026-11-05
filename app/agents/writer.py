@@ -268,6 +268,92 @@ DATOS VERIFICADOS:
                   cta=out.cta, cta_end=out.cta, description=desc, tags=out.tags, scenes=scenes)
 
 
+# ---------- guion estilo MÁQUINA LUMI (plantilla de César para LCMC) ----------
+class MaqScene(BaseModel):
+    tipo: str = "explicacion"   # gancho|explicacion|causa|advertencia|pasos|cierre
+    pose: str = "feliz"
+    titulo: str                 # texto grande en pantalla (máx 6 palabras)
+    puntos: list[str] = []      # hasta 3 viñetas de máx 6 palabras
+    narracion: str              # 1-3 frases, máx 45 palabras
+
+
+class MaqThumb(BaseModel):
+    texto: str
+    resaltar: str = ""
+    subtexto: str = ""
+    aparato: str = "otro"
+    codigo: str = ""
+    pose: str = "sorpresa"
+
+
+class MaqOut(BaseModel):
+    titulo: str
+    descripcion: str
+    hashtags: list[str] = []
+    miniatura: MaqThumb
+    escenas: list[MaqScene]
+    cta: str = "Sígueme para más soluciones de línea blanca"
+
+
+SYSTEM_MAQ = """Eres el guionista del canal "LCMC · Servir para Servir". Lo dirige César, técnico con más de 15 años en
+línea blanca y refrigeración (excapacitador de Samsung). La mascota es LUMI, una chispa de conocimiento amable que
+explica las fallas de forma sencilla, con humor ligero y sin tecnicismos innecesarios.
+Estilo: narración con ilustraciones fijas (canales de divulgación animada). Español de México, cercano, frases
+cortas, una idea por escena. Nada de relleno.
+SEGURIDAD (obligatorio): una escena de advertencia (desconectar antes de abrir); nunca indiques manipular gas,
+soldar o recargar gas (solo técnico certificado); si hay alto voltaje (magnetrón, capacitores de inverter) dilo y
+recomienda técnico; si no estás seguro de un dato, no lo inventes: describe la verificación, no la cifra.
+ESTRUCTURA: gancho (≤ 8 s, plantea el problema) → cómo funciona → cada causa (de la más común a la menos, con su
+síntoma y cómo verificarla) → advertencia → pasos que SÍ puede hacer el usuario → cuándo llamar a un técnico →
+errores comunes → cierre invitando a seguir el canal. Cada escena: titulo ≤ 6 palabras, hasta 3 puntos de ≤ 6
+palabras, narracion 1-3 frases (≤ 45 palabras). Elige la pose de Lumi según la emoción (sorpresa para el gancho,
+diagnostico/analizando para causas, advertencia para seguridad, solucion/listo para el arreglo, celebracion al final).
+Poses: principal, feliz, analizando, pensando, sorpresa, idea, confirmacion, advertencia, listo, aprendizaje,
+diagnostico, solucion, celebracion."""
+
+
+def _maquina_script(cfg: ChannelConfig, job: VideoJob) -> Script:
+    idea = job.idea
+    long_ = idea.format == "long"
+    n_esc, words = ((24, 32), 1150) if long_ else ((5, 7), 120)
+    user = f"""{channel_brief(cfg)}
+{insights_block(cfg.id, 10)}
+TEMA: {idea.title} — {idea.angle}
+{brief(job)}
+FORMATO: {"LARGO para YouTube 16:9" if long_ else "CORTO (Shorts/TikTok 9:16, 40-55 s)"}.
+EXTENSIÓN: entre {n_esc[0]} y {n_esc[1]} escenas y ~{words} palabras narradas en total ({"unos 7-9 minutos: profundiza en cada causa, cómo verificarla, qué piezas intervienen y errores comunes" if long_ else "una sola idea fuerte"}).
+miniatura: texto (2-4 palabras ENORMES con la falla como la busca la gente), resaltar (palabra clave), subtexto
+(aparato y marca), aparato (lavadora|secadora|refrigerador|minisplit|microondas|otro), codigo (si hay), pose."""
+    fb = MaqOut(titulo=idea.title[:70], descripcion=idea.title, miniatura=MaqThumb(texto=" ".join(idea.title.split()[:3])),
+                escenas=[MaqScene(tipo="gancho" if k == 0 else "explicacion", pose="sorpresa" if k == 0 else "feliz",
+                                  titulo=idea.title[:30], narracion=f"Escena {k+1} sobre {idea.title}.") for k in range(n_esc[0])])
+    out = ask_json(SYSTEM_MAQ, user, MaqOut, fallback=fb, smart=long_)
+    if long_ and out is not fb:   # si quedó corto, una ronda para AGREGAR secciones (sin repetir)
+        have = sum(len(e.narracion.split()) for e in out.escenas)
+        if have < words * 0.75:
+            listing = "\n".join(f"{i+1}. [{e.tipo}] {e.titulo}: {e.narracion}" for i, e in enumerate(out.escenas))
+            try:
+                more = ask_json(SYSTEM_MAQ + "\nDevuelve SOLO escenas NUEVAS para insertar antes del cierre: más detalle de "
+                                "cada causa (síntoma, cómo verificar, piezas), errores comunes, cuándo llamar al técnico. "
+                                "Prohibido repetir lo ya dicho.", f"{user}\nGUION ACTUAL ({have} palabras, faltan ~{words - have}):\n{listing}",
+                                MaqOut, fallback=MaqOut(titulo="", descripcion="", miniatura=out.miniatura, escenas=[]))
+                if more.escenas:
+                    out.escenas[-1:-1] = more.escenas
+            except Exception as e:
+                log.warning("[%s] no pude ampliar el guion (%s)", cfg.id, e)
+    from difflib import SequenceMatcher
+    kept: list = []
+    for e in out.escenas:
+        if not any(SequenceMatcher(None, e.narracion.lower(), x.narracion.lower()).ratio() > 0.72 for x in kept):
+            kept.append(e)
+    scenes = [{"text": e.narracion, "tipo": e.tipo, "pose": e.pose, "titulo": e.titulo, "puntos": e.puntos[:3],
+               "visual": "maquina", "visual_prompt": ""} for e in kept]
+    desc = out.descripcion.strip() + ("\n\n" + " ".join(out.hashtags) if out.hashtags else "")
+    return Script(title=out.titulo, hook=kept[0].narracion if kept else "", body=" ".join(s["text"] for s in scenes),
+                  cta=out.cta, cta_end=out.cta, description=desc, tags=[h.strip("#") for h in out.hashtags][:15],
+                  hashtags=out.hashtags[:5], scenes=scenes, extra={"miniatura": out.miniatura.model_dump()})
+
+
 def _fit_highlights(hl: list, rep: dict, max_total: float) -> list:
     """Cada jugada debe caer dentro de un tramo que el Analista vio de verdad; se recorta a ese tramo."""
     from . import scout as _sc
@@ -345,6 +431,8 @@ oír el juego). Si una jugada es [aproximado], no la uses salvo que no haya otra
         job.script = Script(title=out.title, hook=out.hook, body=" ".join(h.voiceover for h in out.highlights),
                             cta=out.cta, description=out.description, tags=out.tags,
                             highlights=[h.model_dump() for h in out.highlights])
+    elif cfg.production.style == "lumi":
+        job.script = _maquina_script(cfg, job)
     else:
         user = f"""{channel_brief(cfg)}
 {insights_block(cfg.id, 12)}

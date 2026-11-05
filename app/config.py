@@ -76,6 +76,7 @@ class Production(BaseModel):
     brand_name: str = ""                       # banner de intro y tarjeta final
     watermark: str = ""                        # @handle en esquina
     accent_ass: str = "&H0044D7FF&"            # color de resaltado (ASS &HAABBGGRR&)
+    hero_template: str = ""                    # "maquina" = videos de héroe con la plantilla de la Máquina Lumi
     style: str = "classic"                     # doodle = caricatura fondo blanco con Lumi redibujado (LCMC)
 
 

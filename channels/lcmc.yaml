@@ -24,7 +24,7 @@ production:
   visual_sources: [pexels, pixabay, flux, gemini]   # orden de fuentes de imagen
   prefer_stock_video: true    # clips reales de Pexels/Pixabay antes que imagen fija
   kind: generated
-  style: doodle               # caricatura 2D fondo blanco, Lumi redibujado, cortes cada 2-4 s
+  style: lumi                 # plantilla de la Máquina Lumi de César (fondo azul, poses de Lumi, subtítulos karaoke)
   voice: es-US-Neural2-B
   language: es-MX
   short_max_seconds: 58

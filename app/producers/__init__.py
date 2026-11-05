@@ -9,4 +9,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
             from . import fullmatch
             return fullmatch.run(cfg, job)   # partida completa editada (video largo)
         return gameplay.run(cfg, job)   # partida grabada; los videos de héroes (wiki) se generan
+    from . import maquina
+    if maquina.uses_maquina(cfg, job):
+        return maquina.run(cfg, job)          # plantilla de la Máquina Lumi (LCMC y héroes de LCMC Games)
     return generated.run(cfg, job)

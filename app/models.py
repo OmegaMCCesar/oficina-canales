@@ -65,6 +65,7 @@ class Script(BaseModel):
     comment_question: str = ""      # pregunta para provocar comentarios
     loop_line: str = ""             # shorts: frase final que conecta con el inicio
     retention_notes: str = ""
+    extra: dict = Field(default_factory=dict)   # datos de la plantilla (p. ej. miniatura de la Máquina Lumi)
     # Estratega SEO
     alt_titles: list[str] = Field(default_factory=list)
     hashtags: list[str] = Field(default_factory=list)

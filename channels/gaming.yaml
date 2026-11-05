@@ -22,6 +22,7 @@ production:
   voice_gender: male
   voice_rate: "+14%"
   music_mood: energetic
+  hero_template: maquina     # videos de héroe con la plantilla de la Máquina Lumi (tema morado/dorado)
   brand_name: "LCMC Games"
   watermark: "@LCMCGAMES"
   accent_ass: "&H00F67C8B&"

@@ -120,7 +120,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     sheet, times = contact_sheet(Path(job.video_path), folder / "critica.jpg")
     total = duration(Path(job.video_path)) or times[-1]
     user = f"""{channel_brief(cfg)}
-ESTILO ESPERADO: {"caricatura 2D fondo blanco con Lumi protagonista" if cfg.production.style == "doodle" else "arte oficial del héroe y tarjetas de habilidad" if job.idea.hero else "video explicativo"}
+ESTILO ESPERADO: {"plantilla Máquina Lumi: fondo azul noche, Lumi con poses, título con barra de color, viñetas y subtítulo con palabra resaltada (es el estilo aprobado por César; no lo critiques por ser ilustración fija)" if cfg.production.style == "lumi" or (job.idea.facts and cfg.production.hero_template == "maquina") else "caricatura 2D fondo blanco con Lumi protagonista" if cfg.production.style == "doodle" else "arte oficial del héroe y tarjetas de habilidad" if job.idea.hero else "video explicativo"}
 VIDEO: «{job.script.title}» ({job.idea.format}, {int(total)} s)
 LO QUE SE NARRA EN CADA CUADRO:
 {_narration_at(job, times, total)}"""

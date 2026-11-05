@@ -112,6 +112,10 @@ def _doodle_thumb(job: VideoJob, text: str, lumi: str, out: Path, k: int) -> Pat
 
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     assert job.script and job.video_path
+    if job.qa.get("thumb_by_maquina") and job.thumbnail_chosen and Path(job.thumbnail_chosen).exists():
+        job.status = "thumbnailed"   # la miniatura de la plantilla de César ya está hecha
+        save_job(job)
+        return job
     user = f"""{channel_brief(cfg)}
 {insights_block(cfg.id, 10)}
 VIDEO: {job.script.title}

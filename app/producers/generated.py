@@ -121,6 +121,9 @@ def _fetch(url: str, folder: Path) -> Path | None:
     out = folder / ("web_" + hashlib.md5(url.encode()).hexdigest()[:12] + ".img")
     if out.exists():
         return out
+    if url.startswith("drive:"):                         # imagen que César subió a su Drive
+        from ..tools.gdrive import fetch_file
+        return fetch_file(url[6:], out)
     if url.startswith("/") and Path(url).exists():      # pruebas locales
         out.write_bytes(Path(url).read_bytes())
         return out

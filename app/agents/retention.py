@@ -91,6 +91,8 @@ resolver y "celebracion" en el cierre. Deja lumi vacío en 1 de cada 4 escenas p
 
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     sc = job.script
+    if cfg.production.style == "lumi":
+        return job  # la Máquina Lumi ya trae su estructura (gancho, causas, advertencia, pasos, cierre)
     if not sc or cfg.production.kind != "generated":
         return job  # gameplay: los highlights ya son el ritmo; solo se agregan CTA abajo
     fmt = job.idea.format

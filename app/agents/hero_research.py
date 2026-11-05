@@ -144,6 +144,12 @@ def run(cfg: ChannelConfig) -> list[Idea]:
     from .trends import trending_names
     hot = trending_names(cfg.id)
     options.sort(key=lambda h: not any(h.lower() in t for t in hot))   # héroes en tendencia primero
+    try:   # y antes que todo, los héroes de los que César subió imágenes a su Drive
+        from ..tools.gdrive import art_index
+        mine = set(art_index(cfg).keys())
+        options.sort(key=lambda h: h.lower() not in mine)
+    except Exception as e:
+        log.info("sin índice de imágenes de César (%s)", e)
     for hero in options[:3]:
         try:
             facts = facts_for(hero)
@@ -159,6 +165,7 @@ def run(cfg: ChannelConfig) -> list[Idea]:
             log.info("[%s] arte de %s: %d splash, %d íconos", cfg.id, hero, len(media["splash"]), len(media["icons"]))
         except Exception as e:
             log.info("sin arte oficial de %s (%s)", hero, e)
+        media = merge_cesar_art(cfg, hero, media)
     ideas = [
         Idea(channel_id=cfg.id, title=f"{hero}: historia, habilidades y cómo jugarlo", format="long", score=8.8,
              source="wiki", hero=hero, facts=facts, media=media, search_intent=f"{hero} mobile legends guia historia",
@@ -173,3 +180,28 @@ def run(cfg: ChannelConfig) -> list[Idea]:
                                                    "ideas": [i.id for i in ideas]})
     add_activity(cfg.id, "investigador", f"Investigué a {hero} en la wiki: historia y habilidades listas", to="director", kind="ok")
     return ideas
+
+
+def merge_cesar_art(cfg: ChannelConfig, hero: str, media: dict) -> dict:
+    """Las imágenes que César subió a «LCMC Games imágenes/<Héroe>» van PRIMERO (mejor calidad que la wiki).
+    Horizontales grandes → arte (splash); cuadradas → íconos (el nombre del archivo es el de la habilidad u objeto)."""
+    try:
+        from ..tools.gdrive import art_index
+        idx = (store().get(cfg.id, "art", "index") or {}).get("heroes") or art_index(cfg)
+    except Exception as e:
+        log.info("sin imágenes de César (%s)", e)
+        return media
+    files = idx.get(hero.strip().lower(), [])
+    if not files:
+        return media
+    splash, icons = [], []
+    for f in files:
+        w, h = f.get("w") or 0, f.get("h") or 0
+        name = re.sub(r"\.(png|jpe?g|webp)$", "", f["name"], flags=re.I).replace("_", " ").strip()
+        if (w and h and w >= h * 1.15) or re.search(r"splash|arte|fondo|skin|wallpaper", name, re.I):
+            splash.append("drive:" + f["id"])
+        else:
+            icons.append({"name": name, "url": "drive:" + f["id"]})
+    have = {i["name"].lower() for i in icons}
+    return {**media, "splash": splash + media.get("splash", []),
+            "icons": icons + [i for i in media.get("icons", []) if i["name"].lower() not in have], "cesar_art": len(files)}

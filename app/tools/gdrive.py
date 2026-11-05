@@ -147,3 +147,50 @@ def sync(cfg) -> list[Path]:
     add_activity(cfg.id, "humano", f"Partida lista para editar: {f['name']}", to="investigador", kind="ok")
     _note(cfg, f"descargué «{f['name']}» ({size // 1_000_000} MB)", pending=len(pending) - 1)
     return [out]
+
+
+# ---------- imágenes de héroes que sube César (mejor calidad que la wiki) ----------
+ART_FOLDER = "LCMC Games imágenes"
+IMG_MIME = ("image/png", "image/jpeg", "image/webp")
+
+
+def art_index(cfg) -> dict:
+    """Lee «LCMC Games imágenes/<Héroe>/…» en el Drive de César: {héroe_minúsculas: [{id, name, w, h}]}.
+    Se guarda en Firestore (art/index) para que el Investigador de héroes lo use sin volver a listar."""
+    creds = _creds()
+    if not creds or settings().MODE == "dry":
+        return (store().get(cfg.id, "art", "index") or {}).get("heroes", {})
+    from googleapiclient.discovery import build
+    svc = build("drive", "v3", credentials=creds, cache_discovery=False)
+    root = svc.files().list(q=f"mimeType='application/vnd.google-apps.folder' and name='{ART_FOLDER}' and trashed=false",
+                            fields="files(id)", pageSize=3).execute().get("files", [])
+    if not root:
+        return {}
+    heroes: dict = {}
+    subs = svc.files().list(q=f"'{root[0]['id']}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
+                            fields="files(id,name)", pageSize=200).execute().get("files", [])
+    for sub in subs:
+        imgs = svc.files().list(q=f"'{sub['id']}' in parents and trashed=false",
+                                fields="files(id,name,mimeType,imageMediaMetadata(width,height))", pageSize=100).execute().get("files", [])
+        heroes[sub["name"].strip().lower()] = [
+            {"id": f["id"], "name": f["name"], "w": (f.get("imageMediaMetadata") or {}).get("width", 0),
+             "h": (f.get("imageMediaMetadata") or {}).get("height", 0)} for f in imgs if f.get("mimeType") in IMG_MIME]
+    store().put(cfg.id, "art", "index", {"heroes": heroes})
+    n = sum(len(v) for v in heroes.values())
+    if n:
+        _note(cfg, f"imágenes de héroes en Drive: {len(heroes)} héroe(s), {n} imagen(es)")
+    return heroes
+
+
+def fetch_file(file_id: str, out: Path) -> Path:
+    """Descarga una imagen de Drive (máx 25 MB) a out."""
+    from googleapiclient.discovery import build
+    creds = _creds()
+    if not creds:
+        raise RuntimeError("Drive no está conectado")
+    svc = build("drive", "v3", credentials=creds, cache_discovery=False)
+    data = svc.files().get_media(fileId=file_id).execute()
+    if len(data) > 25_000_000:
+        raise ValueError("imagen muy pesada")
+    out.write_bytes(data)
+    return out

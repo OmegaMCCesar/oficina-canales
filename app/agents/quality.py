@@ -106,6 +106,7 @@ def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
         warn = _safety(job)
         if warn:
             sc.scenes.insert(1 if len(sc.scenes) > 1 else 0, {"text": warn, "on_screen": "SEGURIDAD", "visual": "doodle", "lumi": "preocupado",
+                             "tipo": "advertencia", "pose": "advertencia", "titulo": "Antes de empezar", "puntos": [],
                              "shots": [{"lumi": "preocupado", "prop": "" if "gas" in warn else "enchufe",
                                         "estado": "desconectado", "overlay": "alerta",
                                         "texto": "VENTILA" if "gas" in warn else "DESCONECTA"}],

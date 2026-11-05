@@ -226,7 +226,7 @@ def save_storyboard(cfg: ChannelConfig, job: VideoJob, p: AnimPlan, issues: list
 def run(cfg: ChannelConfig, job: VideoJob, cesar_notes: str = "") -> VideoJob:
     """Plan + revisión del Director (1 corrección) + storyboard guardado. Devuelve el job listo para producir."""
     from . import director
-    if not job.script or cfg.production.kind != "generated":
+    if not job.script or cfg.production.kind != "generated" or cfg.production.style == "lumi":
         return job
     p, issues = plan(cfg, job, cesar_notes=cesar_notes)
     _apply(job, p)
