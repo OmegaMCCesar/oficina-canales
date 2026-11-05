@@ -79,24 +79,32 @@ def triangulo_alerta(tam, color=M.AMARILLO):
 
 # ---------------------------------------------------------------- fondo
 def crear_fondo(W, H):
-    """Fondo azul noche con resplandores de marca, más grande que el cuadro para poder moverlo."""
+    """Fondo azul noche con resplandores de marca, más grande que el cuadro para poder moverlo.
+    Se calcula a 1/4 de resolución (los resplandores son suaves) y se agranda: ~16 veces menos memoria."""
     w, h = int(W * 1.2), int(H * 1.2)
-    y, x = np.mgrid[0:h, 0:w].astype(np.float32)
-    base = np.zeros((h, w, 3), np.float32) + np.array(M.FONDO, np.float32)
+    q = 4
+    sw, sh = w // q, h // q
+    y, x = np.mgrid[0:sh, 0:sw].astype(np.float32)
+    base = np.zeros((sh, sw, 3), np.float32) + np.array(M.FONDO, np.float32)
 
     def glow(cx, cy, r, color, fuerza):
         d = np.sqrt((x - cx) ** 2 + (y - cy) ** 2) / r
-        g = np.exp(-d ** 2) * fuerza
-        return g[..., None] * np.array(color, np.float32)
+        return (np.exp(-d ** 2) * fuerza)[..., None] * np.array(color, np.float32)
 
-    base += glow(w * 0.18, h * 0.30, max(w, h) * 0.38, M.AZUL, 0.35)
-    base += glow(w * 0.85, h * 0.80, max(w, h) * 0.32, M.VERDE, 0.12)
-    base += glow(w * 0.70, h * 0.15, max(w, h) * 0.25, M.CIAN, 0.10)
-    # rejilla técnica muy tenue
-    paso = 64
-    linea = ((x % paso < 1.2) | (y % paso < 1.2)).astype(np.float32)[..., None]
-    base += linea * np.array(M.CIAN, np.float32) * 0.035
-    im = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8)).convert("RGBA")
+    base += glow(sw * 0.18, sh * 0.30, max(sw, sh) * 0.38, M.AZUL, 0.35)
+    base += glow(sw * 0.85, sh * 0.80, max(sw, sh) * 0.32, M.VERDE, 0.12)
+    base += glow(sw * 0.70, sh * 0.15, max(sw, sh) * 0.25, M.CIAN, 0.10)
+    im = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8)).resize((w, h), Image.BICUBIC).convert("RGBA")
+    del base, x, y
+    # rejilla técnica muy tenue (líneas finas dibujadas a resolución completa)
+    capa = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(capa)
+    col = (*M.CIAN, 9)
+    for gx in range(0, w, 64):
+        d.line((gx, 0, gx, h), fill=col, width=1)
+    for gy in range(0, h, 64):
+        d.line((0, gy, w, gy), fill=col, width=1)
+    im.alpha_composite(capa)
     return im
 
 
@@ -323,8 +331,8 @@ def renderizar(escenas, narraciones, formato, salida: Path, trabajo: Path, music
         cmd += ["-filter_complex", filtro_audio, "-map", "0:v", "-map", "[a]"]
     else:
         cmd += ["-map", "0:v", "-map", "1:a"]
-    cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-threads", "1",
-            "-x264-params", "threads=1:lookahead-threads=1:rc-lookahead=10",
+    cmd += ["-c:v", "libx264", "-preset", "superfast", "-crf", "21", "-pix_fmt", "yuv420p", "-threads", "1",
+            "-x264-params", "threads=1:lookahead-threads=1:rc-lookahead=5:ref=1:bframes=0",
             "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(salida)]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
@@ -434,6 +442,11 @@ def renderizar(escenas, narraciones, formato, salida: Path, trabajo: Path, music
 
             proc.stdin.write(frame.convert("RGB").tobytes())
         t_global += dur
+        try:
+            from ..memory import trim
+            trim()
+        except Exception:
+            pass
     proc.stdin.close()
     proc.wait()
     if proc.returncode:
