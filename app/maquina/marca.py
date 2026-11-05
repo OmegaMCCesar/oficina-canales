@@ -25,6 +25,17 @@ TEMAS = {
     "games": dict(FONDO=(10, 6, 28), AZUL=(124, 58, 237), CIAN=(34, 211, 238), VERDE=(245, 165, 36),
                   LIMA=(255, 224, 138), GRIS=(201, 195, 255), MARCA_1="LCMC", MARCA_2="GAMES"),
 }
+TEMAS["lcmc"]["POSES_DIR"] = ASSETS / "lumi"
+TEMAS["games"]["POSES_DIR"] = ASSETS / "games"      # la mascota de LCMC Games (hoja de César, 24 poses)
+
+# poses de la mascota de LCMC Games
+POSES_GAMES = ["tranquilo", "feliz", "enojado", "pensando", "preocupado", "dormido", "enamorado", "listo", "corriendo",
+               "giro", "agachado", "embestida", "poder", "fuego", "combo", "apuntando", "invocacion", "sentado",
+               "sentado_serio", "espalda", "perfil", "decidido", "tajo", "magia"]
+# si una escena pide una pose de Lumi, se usa su equivalente de la mascota de juegos
+ALIAS_GAMES = {"principal": "decidido", "analizando": "pensando", "sorpresa": "preocupado", "idea": "apuntando",
+               "confirmacion": "listo", "advertencia": "enojado", "aprendizaje": "tranquilo", "diagnostico": "pensando",
+               "solucion": "combo", "celebracion": "poder"}
 
 FORMATOS = {"largo": (1920, 1080), "corto": (1080, 1920)}
 FPS = 30

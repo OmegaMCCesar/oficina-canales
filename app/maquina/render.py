@@ -251,6 +251,8 @@ class Poses:
         if nombre not in self.cache:
             ruta = Path(nombre) if str(nombre).startswith("/") else M.POSES_DIR / f"{nombre}.png"
             if not ruta.exists():
+                ruta = M.POSES_DIR / f"{M.ALIAS_GAMES.get(nombre, nombre)}.png"
+            if not ruta.exists():
                 ruta = M.POSES_DIR / "feliz.png"
             im = Image.open(ruta).convert("RGBA")
             if str(nombre).startswith("/"):

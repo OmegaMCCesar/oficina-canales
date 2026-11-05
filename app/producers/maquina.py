@@ -38,13 +38,14 @@ def _escenas(cfg: ChannelConfig, job: VideoJob, folder: Path) -> list[dict]:
              "titulo": s.get("titulo") or s.get("on_screen") or s.get("big") or "",
              "puntos": list(s.get("puntos") or ([s["detail"]] if s.get("detail") else []))[:3],
              "pose": s.get("pose") if s.get("pose") in M.POSES else "feliz"}
-        if job.idea.facts:   # héroe: su arte en lugar de Lumi; ícono de habilidad/objeto en el recuadro
+        if job.idea.facts:   # héroe: la mascota de LCMC Games presenta; el arte o el ícono va en el recuadro
+            e["pose"] = _mascot_pose(k, len(job.script.scenes), s, out[-1]["pose"] if out else "")
             art = s.get("bg_url") if s.get("visual") in ("icon", "clip", "item") else s.get("img_url")
             art = art or (job.idea.media.get("splash") or [None])[k % max(1, len(job.idea.media.get("splash") or [1]))]
             try:
                 p = _fetch(art, folder) if art else None
                 if p:
-                    e["pose"] = str(p.resolve())
+                    e["imagen"] = str(p.resolve())
             except Exception as ex:
                 log.info("sin arte para la escena %d (%s)", k, ex)
             icon = s.get("img_url") if s.get("visual") == "icon" else None
@@ -65,6 +66,31 @@ def _escenas(cfg: ChannelConfig, job: VideoJob, folder: Path) -> list[dict]:
                 e["titulo"] = " ".join(text.split()[:5]).rstrip(".,")
         out.append(e)
     return out
+
+
+ACTION = ["tajo", "combo", "embestida", "magia", "fuego", "giro", "corriendo", "invocacion"]
+TALK = ["decidido", "pensando", "apuntando", "tranquilo", "listo", "feliz", "sentado_serio"]
+
+
+def _mascot_pose(k: int, n: int, s: dict, prev: str) -> str:
+    """Pose de la mascota según la escena: acción en el gancho y en habilidades; pregunta → pensando; cierre feliz."""
+    text = (s.get("text") or "").lower()
+    if k == 0:
+        return "giro"
+    if k == n - 1:
+        return "feliz" if prev != "feliz" else "poder"
+    if "?" in text and k > 1:
+        return "pensando" if prev != "pensando" else "preocupado"
+    if s.get("visual") in ("icon", "clip") or any(w in text for w in ("habilidad", "ulti", "daño", "combo", "golpe")):
+        pool = ACTION
+    elif any(w in text for w in ("historia", "nació", "abismo", "reino", "familia", "pasado", "lore")):
+        pool = ["tranquilo", "sentado_serio", "pensando", "perfil", "decidido"]
+    elif any(w in text for w in ("error", "cuidado", "no hagas", "evita", "débil", "counter")):
+        pool = ["enojado", "preocupado", "apuntando"]
+    else:
+        pool = TALK
+    pick = pool[k % len(pool)]
+    return pick if pick != prev else pool[(k + 1) % len(pool)]
 
 
 def _icon_panel(src: Path, out: Path, w: int = 980, h: int = 460) -> Path:
