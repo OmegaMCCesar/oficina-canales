@@ -711,8 +711,12 @@ def _niche_lab_boot() -> None:
     from .agents import niche_lab
     log = logging.getLogger("nichelab")
     for q in qs[:40]:
+        region = os.getenv("NICHE_LAB_REGION", "MX")
+        if q[:3] in ("US:", "MX:", "ES:"):
+            region, q = q[:2], q[3:].strip()
         for r in niche_lab.measure(os.getenv("NICHE_LAB_VIA", "lcmc"), [q], int(os.getenv("NICHE_LAB_DAYS", "30")),
-                                   os.getenv("NICHE_LAB_REGION", "MX"), os.getenv("NICHE_LAB_LANG", "es")):
+                                   region, os.getenv("NICHE_LAB_LANG", "es")):
+            r["query"] = f"{region}:{r['query']}"
             def _v(v):
                 return f"{v['views']}|x{v['x']}|{v.get('subs')}s|{v['secs']}s|{v['title'][:60]}|{v['chname'][:24]}"
             slim = {k: r.get(k) for k in ("query", "videos", "channels", "small_channels", "median_views",
