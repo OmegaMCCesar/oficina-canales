@@ -74,7 +74,15 @@ def run_channel(channel_id: str, bg: BackgroundTasks, publish: bool = True):
     return {"started": channel_id}
 
 
-@app.post("/research/niches", dependencies=[Depends(auth)])
+def research_auth(x_token: str = Header(default="")):
+    """Token propio del laboratorio (RESEARCH_TOKEN) o el del panel."""
+    rt = os.getenv("RESEARCH_TOKEN", "")
+    if rt and secrets.compare_digest(x_token, rt):
+        return
+    auth(x_token)
+
+
+@app.post("/research/niches", dependencies=[Depends(research_auth)])
 def research_niches(body: dict):
     """Laboratorio de nichos: datos crudos de YouTube para comparar nichos candidatos."""
     from .agents import niche_lab
