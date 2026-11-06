@@ -1,0 +1,59 @@
+id: quetrae
+name: "¿Qué Trae?"
+active: false              # en preparación: se activa cuando César crea el canal y autoriza YouTube
+youtube_handle: "@QueTraeMX"   # pendiente: confirmar que esté libre al crear el canal
+youtube_channel_id: ""
+niche: "Lo que se compra, se come o se usa en México, abierto por dentro: cómo se fabrica, qué trae de verdad (estudios de laboratorio de PROFECO, NOM, etiquetas) y si vale lo que cuesta. Comida, aparatos, ropa, cosméticos, juguetes, materiales: todo se puede abrir y averiguar qué trae."
+audience: "Personas de 18 a 45 años en México y mexicanos en Estados Unidos que compran estos productos y quieren saber qué están pagando; curiosos de cómo se hacen las cosas."
+tone: "Un técnico con 15 años abriendo aparatos que ahora abre todo: curioso, directo, con datos y sin alarmismo. Muestra, mide y cita la fuente en pantalla. Nada de 'dicen que'."
+language: es-MX
+
+cadence:
+  shorts_per_day: 1
+  longs_per_week: 2
+  publish_hours_local: [14, 20]
+  timezone: America/Mexico_City
+  min_gap_hours: 8
+  max_queue_ready: 10
+
+production:
+  kind: generated
+  style: classic             # pendiente: plantilla «documental» propia (diagramas de proceso, tablas de precio, sellos de fuente)
+  voice_gender: male
+  voice_rate: "+4%"
+  music_mood: calm
+  brand_name: "¿Qué Trae?"
+  watermark: "@QueTraeMX"
+  accent_ass: "&H0000C8FF&"
+  language: es-MX
+  short_max_seconds: 55
+  long_target_minutes: 14
+  visual_sources: [pexels, pixabay, gemini]
+  prefer_stock_video: true
+  image_style: "Fotografía de producto limpia sobre fondo liso, o diagrama técnico plano de proceso industrial. Sin texto dentro de la imagen."
+
+topic_seeds:
+  - "Caldos en cubo: qué traen de verdad según PROFECO (Revista del Consumidor nov 2026, 36 productos)"
+  - "El cereal con más azúcar: 43 marcas analizadas por PROFECO (oct 2026)"
+  - "¿Qué trae una bolsa de papas? Aire, aceite y precio real por gramo"
+  - "Así se hace la tortilla de máquina"
+  - "Por qué tu refri dura la mitad que el de tu abuela"
+  - "Abrí 3 licuadoras baratas: solo una vale la pena"
+  - "¿Qué hay dentro de un cargador barato vs uno original?"
+
+banned_topics:
+  - "Afirmar que una marca engaña o es dañina sin un estudio publicado de PROFECO, una NOM o una fuente primaria citada"
+  - "Consejos médicos o de salud personal"
+  - "Usar video de fábricas ajeno sin licencia"
+
+director_rules: |
+  - Formatos fijos: «Por dentro» (cómo se hace + historia de la marca), «¿Es lo que dice la etiqueta?» (datos de PROFECO + prueba casera), «¿Hecho para romperse?» (aparatos, experiencia de César).
+  - Cada dato con fuente citada en pantalla. Un estudio de PROFECO se cita por EDICIÓN de la Revista del Consumidor (mes y año); las notas de prensa a veces reciclan estudios viejos.
+  - Empaque primero: título y miniatura se aprueban antes del guion. Si no da ganas de hacer clic, no se produce.
+  - Prueba anti-plantilla: si el guion pudiera cambiar de producto sin cambiar nada más, se reescribe.
+  - Cada largo produce 2-3 Shorts originales (un dato fuerte cada uno), no recortes.
+  - Las pruebas caseras se presentan como prueba casera, nunca como laboratorio.
+
+branding:
+  description: "Lo que compras todos los días, abierto por dentro. Cómo se fabrica, qué trae de verdad y si vale lo que cuesta, con datos de PROFECO y un técnico con 15 años abriendo cosas. Comida, aparatos, ropa, todo."
+  keywords: "qué trae, cómo se hace, cómo se fabrica, PROFECO, por dentro, etiqueta, marcas mexicanas, productos mexicanos"

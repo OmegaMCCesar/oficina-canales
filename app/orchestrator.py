@@ -72,6 +72,11 @@ def is_running() -> bool:
 def run_channel(channel_id: str, publish: bool = True) -> dict:
     """Ejecuta el ciclo y SIEMPRE deja registro (aunque falle) para que el panel lo muestre."""
     import threading
+    from .config import load_channels as _lc
+    _cfg = _lc().get(channel_id)
+    if _cfg is not None and not _cfg.active:
+        act(channel_id, "director", "Canal en preparación: todavía no corre ciclos (falta lanzarlo)", kind="ask")
+        return {"channel": channel_id, "status": "inactive"}
     if not _RUN_LOCK.acquire(blocking=False):
         act(channel_id, "director", "Ya hay un ciclo en marcha; espera a que termine", kind="ask")
         return {"channel": channel_id, "status": "busy"}
@@ -450,4 +455,4 @@ def _dedupe(cfg) -> None:
 
 
 def run_all(publish: bool = True) -> list[dict]:
-    return [run_channel(cid, publish) for cid in load_channels()]
+    return [run_channel(cid, publish) for cid, c in load_channels().items() if c.active]

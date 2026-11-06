@@ -83,6 +83,7 @@ class Production(BaseModel):
 class ChannelConfig(BaseModel):
     id: str
     name: str
+    active: bool = True              # False = canal en preparación: no corre ciclos ni sube nada
     youtube_handle: str
     youtube_channel_id: str = ""     # se rellena tras OAuth
     niche: str
