@@ -110,8 +110,108 @@ def _doodle_thumb(job: VideoJob, text: str, lumi: str, out: Path, k: int) -> Pat
     return out
 
 
+# ------------------------------------------------------------------ formato LCMC Games
+class GameThumb(BaseModel):
+    layout: str = "heroe"      # heroe | vs | mascota
+    linea1: str = ""           # 1-2 palabras, blanca
+    linea2: str = ""           # 1-2 palabras, amarilla: la palabra que vende
+    cinta: str = ""            # 2-4 palabras en la cinta de color
+    tema: str = "azul"         # azul | rojo | morado | dorado
+    acento: str = "ninguno"    # ninguno | flecha | subir | alerta | corona
+    pose: str = ""             # pose de la mascota
+    lado: str = "izq"          # izq | der: dónde va el sujeto
+
+
+class GameThumbOut(BaseModel):
+    variants: list[GameThumb]
+    chosen: int = 0
+
+
+SYSTEM_GAMES = """Eres el DISEÑADOR DE MINIATURAS de LCMC Games (Mobile Legends y Magic Chess: Go Go).
+Todas las miniaturas siguen UN formato (el del canal): título 3D gigante en 2 líneas (línea 1 blanca, línea 2
+AMARILLA con la palabra que vende), una cinta de color abajo con 2-4 palabras, el sello del canal arriba, fondo con
+energía y relámpagos. Propón 3 variantes para la prueba A/B de YouTube; cada una cambia UNA cosa (texto, composición
+o tema) para saber qué funcionó.
+
+Composición (layout):
+- heroe: el héroe grande a un lado y el texto al otro. Guías, jugadas, builds, «X imparable».
+- vs: dos héroes enfrentados con VS en medio. Counters, matchups, «quién gana».
+- mascota: la mascota del canal reaccionando en grande + un acento. Trucos, errores, subir de rango, tops, Magic Chess.
+Tema (color): rojo = agresivo/kills/daño; morado = Magic Chess y magos; dorado = rango, top, mítico; azul = guías y general.
+Acento (solo heroe/mascota): flecha, subir (rango), alerta (errores), corona (top/mejor), ninguno.
+Poses de la mascota: {poses}.
+
+Reglas del texto:
+- linea1 + linea2 = máximo 4 palabras en total; nunca repitas el título del video, complementa.
+- La palabra más fuerte (IMPARABLE, ROTO, COUNTER, MÍTICO, ERROR, GRATIS, un número) va en linea2.
+- Nunca prometas algo que el video no muestra; si el video no tiene kills reales, no pongas números de kills.
+- Usa el nombre del héroe si el video es de un héroe (la gente busca por héroe).
+Luego, como el Director, elige la mejor según la memoria del canal."""
+
+
+def _games_thumbs(cfg: ChannelConfig, job: VideoJob, folder: Path) -> list[str]:
+    from ..maquina import miniatura_games as G
+    poses = sorted(p.stem for p in G.MASCOTA.glob("*.png"))
+    user = f"""{channel_brief(cfg)}
+{insights_block(cfg.id, 10)}
+VIDEO: {job.script.title}
+GANCHO: {job.script.hook}
+HÉROE: {job.idea.hero or "(no aplica)"}
+FORMATO: {job.idea.format}
+{brief(job)}"""
+    hero = job.idea.hero or ""
+    fallback = GameThumbOut(variants=[
+        GameThumb(layout="heroe" if hero else "mascota", linea1=hero or "Así se", linea2="guía" if hero else "juega",
+                  cinta="paso a paso", tema="azul", pose="apuntando"),
+        GameThumb(layout="mascota", linea1=hero or "trucos", linea2="roto", cinta="nadie lo sabe", tema="rojo",
+                  acento="alerta", pose="sorprendido" if (G.MASCOTA / "sorprendido.png").exists() else "preocupado"),
+        GameThumb(layout="heroe" if hero else "mascota", linea1=hero or "sube de", linea2="mítico" if hero else "rango",
+                  cinta="con esta build", tema="dorado", acento="corona", pose="feliz", lado="der"),
+    ])
+    out = ask_json(SYSTEM_GAMES.replace("{poses}", ", ".join(poses)), user, GameThumbOut, fallback=fallback)
+    from ..producers.generated import _fetch
+    media = job.idea.media or {}
+
+    def _img(urls):
+        for u in urls or []:
+            try:
+                p = _fetch(u, folder)
+                if p:
+                    return Image.open(p)
+            except Exception as e:
+                log.info("arte para miniatura no disponible (%s)", e)
+        return None
+    heroe = _img(media.get("cutouts")) or _img(media.get("splash"))
+    fondo = _img(media.get("splash"))
+    if job.script.highlights and job.video_path:      # partida real: un cuadro de la jugada de fondo
+        try:
+            h = job.script.highlights[0]
+            fr = folder / "thumb_frame.jpg"
+            ffmpeg.frame_at(Path(job.video_path), max(0.5, (h["end"] - h["start"]) / 2), fr)
+            fondo = Image.open(fr)
+        except Exception as e:
+            log.info("sin cuadro de la partida (%s)", e)
+    paths = []
+    for k, v in enumerate(out.variants[:3]):
+        try:
+            paths.append(str(G.generar(v.model_dump(), folder / f"thumb_{k}.jpg", heroe=heroe, fondo=fondo)))
+        except Exception as e:
+            log.warning("miniatura %d falló (%s)", k, e)
+    job.qa = {**job.qa, "thumb_specs": [v.model_dump() for v in out.variants[:3]], "thumb_format": "lcmc_games_v1"}
+    job.thumbnail_paths = paths
+    job.thumbnail_chosen = paths[min(out.chosen, len(paths) - 1)] if paths else None
+    return paths
+
+
 def run(cfg: ChannelConfig, job: VideoJob) -> VideoJob:
     assert job.script and job.video_path
+    if cfg.id == "gaming":                     # formato propio del canal, siempre (también si armó la laptop)
+        folder = MEDIA_DIR / cfg.id / job.id
+        folder.mkdir(parents=True, exist_ok=True)
+        if _games_thumbs(cfg, job, folder):
+            job.status = "thumbnailed"
+            save_job(job)
+            return job
     if job.qa.get("thumb_by_maquina") and job.thumbnail_chosen and Path(job.thumbnail_chosen).exists():
         job.status = "thumbnailed"   # la miniatura de la plantilla de César ya está hecha
         save_job(job)

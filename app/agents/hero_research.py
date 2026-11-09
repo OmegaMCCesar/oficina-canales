@@ -194,14 +194,16 @@ def merge_cesar_art(cfg: ChannelConfig, hero: str, media: dict) -> dict:
     files = idx.get(hero.strip().lower(), [])
     if not files:
         return media
-    splash, icons = [], []
+    splash, icons, cutouts = [], [], []
     for f in files:
         w, h = f.get("w") or 0, f.get("h") or 0
         name = re.sub(r"\.(png|jpe?g|webp)$", "", f["name"], flags=re.I).replace("_", " ").strip()
-        if (w and h and w >= h * 1.15) or re.search(r"splash|arte|fondo|skin|wallpaper", name, re.I):
+        if re.search(r"recorte|render|sin fondo|cutout|miniatura", name, re.I):   # héroe recortado (PNG sin fondo)
+            cutouts.append("drive:" + f["id"])
+        elif (w and h and w >= h * 1.15) or re.search(r"splash|arte|fondo|skin|wallpaper", name, re.I):
             splash.append("drive:" + f["id"])
         else:
             icons.append({"name": name, "url": "drive:" + f["id"]})
     have = {i["name"].lower() for i in icons}
-    return {**media, "splash": splash + media.get("splash", []),
+    return {**media, "splash": splash + media.get("splash", []), "cutouts": cutouts + media.get("cutouts", []),
             "icons": icons + [i for i in media.get("icons", []) if i["name"].lower() not in have], "cesar_art": len(files)}

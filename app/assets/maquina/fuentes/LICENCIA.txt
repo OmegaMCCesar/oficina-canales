@@ -1,1 +1,4 @@
 Poppins © Indian Type Foundry — SIL Open Font License 1.1 (uso libre, incluso comercial).
+
+LuckiestGuy-Regular.ttf — Luckiest Guy, Astigmatic. Apache License 2.0 (google/fonts/apache/luckiestguy).
+LilitaOne-Regular.ttf — Lilita One, Juan Montoreano. SIL Open Font License 1.1 (google/fonts/ofl/lilitaone).
