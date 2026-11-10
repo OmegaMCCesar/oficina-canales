@@ -352,12 +352,94 @@ def _acento(lienzo: Image.Image, tipo: str, x: int, y: int, escala=1.0):
             d.ellipse((px - 11, y + r // 6 - 11, px + 11, y + r // 6 + 11), fill=(140, 60, 255), outline=NEGRO, width=3)
 
 
+# ------------------------------------------------------------------ antes / después (mismo héroe, dos mitades)
+def _escena_dividida(tema_k: str, heroe: Image.Image, fondo, rng, frio: bool, pos=(0, 0)) -> Image.Image:
+    oscuro, medio, brillo, _, c_rayo = TEMAS[tema_k]
+    lienzo = _degradado(oscuro, medio, radial=(0.5, 0.42)).convert("RGBA")
+    if fondo is not None:
+        t = _tenir(_cubrir(fondo.convert("RGB")).filter(ImageFilter.GaussianBlur(4)), oscuro, brillo).convert("RGBA")
+        t.putalpha(100)
+        lienzo.alpha_composite(t)
+    lienzo.alpha_composite(_rayos((W // 2, int(H * 0.4)), brillo, rng, n=16))
+    g = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(g).ellipse((W // 2 - 360, 20, W // 2 + 360, 720), fill=(*brillo, 130))
+    lienzo.alpha_composite(g.filter(ImageFilter.GaussianBlur(90)))
+    zonas = [(40, 0, 380, int(H * 0.6))] if frio else [(W - 380, 0, W - 40, int(H * 0.6))]
+    lienzo.alpha_composite(_energia(c_rayo, rng, zonas))
+    suj = heroe
+    if frio:   # el mismo héroe, «antes»: frío, sin color demoníaco
+        rgb = ImageOps.colorize(ImageOps.grayscale(suj.convert("RGB")), black=(4, 10, 40), white=(200, 228, 255),
+                                mid=(60, 110, 200)).convert("RGBA")
+        rgb.putalpha(suj.getchannel("A"))
+        suj = Image.blend(suj, rgb, 0.85)
+    x, y = pos
+    _pegar(lienzo, suj, x, y, c_rayo)
+    return lienzo
+
+
+def _centro_cara(img: Image.Image) -> tuple[int, int]:
+    """Estimación de la cabeza: centro de masa de la franja 18-34 % superior del sujeto."""
+    a = img.getchannel("A")
+    y0, y1 = int(img.height * 0.18), int(img.height * 0.34)
+    franja = a.crop((0, y0, img.width, y1)).resize((img.width // 4, 1), Image.BOX)
+    vals = list(franja.getdata())
+    tot = sum(vals) or 1
+    cx = sum(i * v for i, v in enumerate(vals)) / tot * 4
+    return int(cx), (y0 + y1) // 2
+
+
+def generar_dividido(spec: dict, destino: Path, heroe: Image.Image, fondo=None) -> Path:
+    """Concepto «antes y después»: el héroe partido en diagonal, izquierda fría (antes) y derecha roja (ahora)."""
+    rng = _rng(spec.get("linea1"), spec.get("linea2"), "dividido")
+    h = heroe.convert("RGBA")
+    alto = int(spec.get("alto_heroe", 860))
+    h = h.resize((int(h.width * alto / h.height), alto), Image.LANCZOS)
+    x_arr, x_aba = int(W * 0.60), int(W * 0.42)          # el corte diagonal
+    # la cara del héroe justo sobre el corte: mitad fría, mitad demonio
+    if spec.get("cara"):          # posición de la cara en el recorte (fracciones), si se conoce
+        cx, cy = int(spec["cara"][0] * h.width), int(spec["cara"][1] * h.height)
+    else:
+        cx, cy = _centro_cara(h)
+    y = int(spec.get("y_heroe", -40))
+    cara_y = y + cy
+    linea_x = x_arr - (x_arr - x_aba) * cara_y / H
+    pos = (int(linea_x - cx + int(spec.get("cara_offset", 70))), y)   # la cara un poco del lado «ahora», para que se reconozca
+    izq = _escena_dividida(spec.get("tema_antes", "azul"), h, fondo, rng, True, pos)
+    der = _escena_dividida(spec.get("tema_ahora", "rojo"), h, fondo, _rng("der", spec.get("linea2")), False, pos)
+    m = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(m).polygon([(x_arr, 0), (W, 0), (W, H), (x_aba, H)], fill=255)
+    lienzo = izq.copy()
+    lienzo.paste(der, (0, 0), m)
+    # el tajo: línea blanca con brillo
+    tajo = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(tajo).line([(x_arr, -10), (x_aba, H + 10)], fill=(255, 255, 255, 255), width=7)
+    for radio, col in ((22, (255, 60, 60)), (10, (255, 255, 255))):
+        b = Image.new("RGBA", (W, H), (*col, 0))
+        b.putalpha(tajo.getchannel("A").filter(ImageFilter.GaussianBlur(radio)).point(lambda v: min(255, v * 3)))
+        lienzo.alpha_composite(b)
+    lienzo.alpha_composite(tajo)
+    _vineta(lienzo)
+    t = bloque_titulo(spec.get("linea1", ""), spec.get("linea2", ""), spec.get("cinta", ""),
+                      TEMAS["rojo"][3], max_w=900, tam=int(spec.get("tam_titulo", 92)), giro=-3)
+    if t.width > 960:
+        r = 960 / t.width
+        t = t.resize((int(t.width * r), int(t.height * r)), Image.LANCZOS)
+    lienzo.alpha_composite(t, ((W - t.width) // 2, H - t.height - 4))
+    _sello(lienzo)
+    destino = Path(destino)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    lienzo.convert("RGB").save(destino, "JPEG", quality=93)
+    return destino
+
+
 # ------------------------------------------------------------------ composición
 def generar(spec: dict, destino: Path, heroe: Image.Image | None = None, heroe2: Image.Image | None = None,
             fondo: Image.Image | None = None) -> Path:
-    """spec: {layout: heroe|vs|mascota, linea1, linea2, cinta, tema: azul|rojo|morado|dorado,
+    """spec: {layout: heroe|vs|mascota|dividido, linea1, linea2, cinta, tema: azul|rojo|morado|dorado,
               acento: ninguno|flecha|subir|alerta|corona, pose: <pose de la mascota>, lado: izq|der}"""
     layout = spec.get("layout", "heroe")
+    if layout == "dividido" and heroe is not None:
+        return generar_dividido(spec, destino, heroe, fondo)
     tema = TEMAS.get(spec.get("tema", "azul"), TEMAS["azul"])
     oscuro, medio, brillo, c_cinta, c_rayo = tema
     rng = _rng(spec.get("linea1"), spec.get("linea2"), layout)
